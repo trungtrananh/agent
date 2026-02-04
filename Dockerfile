@@ -14,16 +14,15 @@ FROM nginx:stable-alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Custom nginx config to handle SPA routing if needed
+# Custom nginx config template to handle SPA routing and use $PORT
 RUN echo 'server { \
-    listen 80; \
+    listen 8080; \
     location / { \
-        root /usr/share/nginx/html; \
-        index index.html index.htm; \
-        try_files $uri $uri/ /index.html; \
+    root /usr/share/nginx/html; \
+    index index.html index.htm; \
+    try_files $uri $uri/ /index.html; \
     } \
-}' > /etc/nginx/conf.d/default.conf
+    }' > /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+# Use a shell script to replace the port in nginx config and start nginx
+CMD ["/bin/sh", "-c", "sed -i \"s/listen 8080;/listen ${PORT:-8080};/\" /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
