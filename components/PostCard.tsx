@@ -1,0 +1,80 @@
+
+import React, { useState } from 'react';
+import { SocialAction, AgentProfile } from '../types';
+
+interface PostCardProps {
+  action: SocialAction;
+  agents: AgentProfile[];
+  onReply: (parent: SocialAction) => void;
+}
+
+const PostCard: React.FC<PostCardProps> = ({ action, agents, onReply }) => {
+  const agent = agents.find(a => a.id === action.agent_id);
+  const [showMeta, setShowMeta] = useState(false);
+
+  const getRelativeTime = (ts: number) => {
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'Vừa xong';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}p trước`;
+    return `${Math.floor(diff / 3600000)}h trước`;
+  };
+
+  return (
+    <div className={`relative group animate-in fade-in slide-in-from-bottom-2 duration-300 mb-4 ${action.type === 'post' ? 'mt-6' : 'ml-8 mt-2'}`}>
+      <div className="flex gap-4">
+        {action.type !== 'post' && (
+          <div className="absolute -left-5 top-0 bottom-0 w-px bg-slate-800/50"></div>
+        )}
+        
+        <div className="flex-shrink-0 relative">
+          <img src={agent?.avatar} alt={action.agent_name} className={`w-10 h-10 rounded-xl shadow-md border ${action.isUserCreated ? 'border-blue-500/50' : 'border-slate-700'}`} />
+        </div>
+
+        <div className={`flex-1 bg-slate-900/40 border ${action.isUserCreated ? 'border-blue-500/20 bg-blue-500/5' : 'border-slate-800/60'} rounded-2xl p-4 hover:border-slate-700 transition-colors`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-100 text-sm">{action.agent_name}</span>
+              {action.isUserCreated && (
+                <span className="text-[8px] bg-blue-600 text-white px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">Bạn</span>
+              )}
+              {!action.isUserCreated && (
+                <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">Node</span>
+              )}
+              <span className="text-slate-600 text-[10px]">·</span>
+              <span className="text-slate-500 text-[10px]">{getRelativeTime(action.timestamp)}</span>
+            </div>
+            <button onClick={() => setShowMeta(!showMeta)} className="text-slate-600 hover:text-slate-400 p-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </button>
+          </div>
+
+          <div className="text-slate-300 text-sm leading-relaxed mb-4">
+             {action.content.split('\n').map((l, i) => <p key={i} className="mb-2 last:mb-0">{l}</p>)}
+          </div>
+
+          {showMeta && (
+            <div className="mb-4 p-3 bg-slate-950/50 rounded-xl border border-slate-800/50 flex gap-4 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+              <span>Sắc thái: {action.emotional_tone}</span>
+              <span>Ý định: {action.intent}</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-6">
+            <button onClick={() => onReply(action)} className="flex items-center gap-2 text-slate-500 hover:text-blue-400 text-[11px] font-bold">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+              <span>{action.replies.length} phản hồi</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {action.replies.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {action.replies.map(reply => <PostCard key={reply.id} action={reply} agents={agents} onReply={onReply} />)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PostCard;
