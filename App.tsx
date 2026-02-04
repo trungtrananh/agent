@@ -5,17 +5,11 @@ import { INITIAL_AGENTS, COMMUNITY_AGENTS } from './constants';
 import { generateAgentActivity, generateProfileFromDescription } from './geminiService';
 import Sidebar from './components/Sidebar';
 import PostCard from './components/PostCard';
+import { syncService } from './syncService';
 
 const FEED_STORAGE_LIMIT = 50;
 
-const getOrCreateGuestId = () => {
-  let guestId = localStorage.getItem('neuralnet_guest_id');
-  if (!guestId) {
-    guestId = 'node_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('neuralnet_guest_id', guestId);
-  }
-  return guestId;
-};
+// getOrCreateGuestId is now handled inside syncService.getIpId
 
 const TRENDING_TOPICS = [
   "Sự cộng sinh giữa AI và Nghệ thuật",
@@ -33,7 +27,7 @@ function App() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentTopic, setCurrentTopic] = useState(TRENDING_TOPICS[0]);
-  
+
   const [aiDescription, setAiDescription] = useState('');
   const [isAiGeneratingProfile, setIsAiGeneratingProfile] = useState(false);
   const [formData, setFormData] = useState({
@@ -44,23 +38,34 @@ function App() {
 
   // Load Data
   useEffect(() => {
-    const guestId = getOrCreateGuestId();
-    setUser({
-      id: guestId,
-      name: 'Điều hành Node',
-      email: 'Chế độ Cục bộ',
-      avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${guestId}`
-    });
+    const initApp = async () => {
+      const guestId = await syncService.getIpId();
+      setUser({
+        id: guestId,
+        name: `Node ${guestId.slice(-4)}`,
+        email: `IP: ${guestId}`,
+        avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${guestId}`
+      });
 
-    const savedUserAgents = localStorage.getItem(`neuralnet_agents_${guestId}`);
-    if (savedUserAgents) {
-      setAgents([...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...JSON.parse(savedUserAgents)]);
-    }
+      // Load global data
+      const [globalAgents, globalFeed] = await Promise.all([
+        syncService.getAllAgents(),
+        syncService.getGlobalFeed()
+      ]);
 
-    const savedFeed = localStorage.getItem(`neuralnet_feed_${guestId}`);
-    if (savedFeed) {
-      setFeed(JSON.parse(savedFeed));
-    }
+      // Combine local and global (filter unique by id)
+      setAgents(prev => {
+        const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents];
+        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+        return unique;
+      });
+
+      if (globalFeed.length > 0) {
+        setFeed(globalFeed);
+      }
+    };
+
+    initApp();
   }, []);
 
   // Save Data
@@ -83,14 +88,14 @@ function App() {
 
     try {
       // Chọn agent: Nếu không ép buộc, chọn ngẫu nhiên từ toàn bộ pool (bao gồm cả cộng đồng)
-      const targetAgent = forcedAgentId 
+      const targetAgent = forcedAgentId
         ? agents.find(a => a.id === forcedAgentId)
         : agents[Math.floor(Math.random() * agents.length)];
 
       if (!targetAgent) return;
 
       const type: ActivityType = forcedType || (feed.length === 0 || Math.random() < 0.3 ? 'post' : Math.random() < 0.6 ? 'comment' : 'reply');
-      
+
       let parentAction: SocialAction | undefined;
       let contextActions: SocialAction[] = [];
 
@@ -124,6 +129,9 @@ function App() {
           isUserCreated: targetAgent.ownerId === user?.id
         };
 
+        const syncAction = { ...newAction, timestamp: Date.now() };
+        syncService.saveActivity(syncAction);
+
         setFeed(prevFeed => {
           let updatedFeed;
           if (newAction.type === 'post') {
@@ -140,8 +148,8 @@ function App() {
           }
 
           if (user && newAction.isUserCreated) {
-             const history = JSON.parse(localStorage.getItem(`neuralnet_history_${user.id}`) || '[]');
-             localStorage.setItem(`neuralnet_history_${user.id}`, JSON.stringify([newAction, ...history].slice(0, 100)));
+            const history = JSON.parse(localStorage.getItem(`neuralnet_history_${user.id}`) || '[]');
+            localStorage.setItem(`neuralnet_history_${user.id}`, JSON.stringify([newAction, ...history].slice(0, 100)));
           }
 
           return updatedFeed;
@@ -175,10 +183,11 @@ function App() {
       posting_goals: formData.goals,
       topics_of_interest: formData.topics,
       avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${formData.name}`,
-      color: '#' + Math.floor(Math.random()*16777215).toString(16),
+      color: '#' + Math.floor(Math.random() * 16777215).toString(16),
       ownerId: user.id
     };
     setAgents(prev => [...prev, newAgent]);
+    syncService.saveAgent(newAgent);
     setFormData({ name: '', traits: '', tone: '', worldview: '', goals: '', topics: '' });
     setActiveView('agents');
   };
@@ -188,8 +197,8 @@ function App() {
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-200">
-      <Sidebar 
-        activeView={activeView} setActiveView={setActiveView} 
+      <Sidebar
+        activeView={activeView} setActiveView={setActiveView}
         agents={agents} onAutoSimulate={() => setIsSimulating(!isSimulating)}
         isSimulating={isSimulating} user={user}
       />
@@ -205,8 +214,8 @@ function App() {
                   <span className="text-[10px] font-mono text-blue-400 font-bold">#{currentTopic.replace(/\s+/g, '_').toLowerCase()}</span>
                 </div>
               </div>
-              <button 
-                onClick={() => simulateAction()} 
+              <button
+                onClick={() => simulateAction()}
                 disabled={isGenerating}
                 className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm"
               >
@@ -232,10 +241,10 @@ function App() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {userAgents.map(agent => (
-                  <AgentCard key={agent.id} agent={agent} isOwner={true} onAction={() => {simulateAction('post', agent.id); setActiveView('feed');}} />
+                  <AgentCard key={agent.id} agent={agent} isOwner={true} onAction={() => { simulateAction('post', agent.id); setActiveView('feed'); }} />
                 ))}
                 <div className="bg-slate-900/20 border border-dashed border-slate-800 p-8 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-slate-900/40 transition-all cursor-pointer group" onClick={() => setActiveView('settings')}>
-                  <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center mb-3 text-slate-500 group-hover:text-blue-500"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg></div>
+                  <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center mb-3 text-slate-500 group-hover:text-blue-500"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg></div>
                   <h4 className="text-slate-400 font-bold text-sm">Kiến Tạo Thêm</h4>
                 </div>
               </div>
@@ -258,28 +267,28 @@ function App() {
         {activeView === 'history' && (
           <div className="space-y-6 pb-20">
             <header className="mb-8 border-b border-slate-800 pb-6">
-               <h2 className="text-2xl font-black text-white">Nhật Ký Quản Lý</h2>
-               <p className="text-sm text-slate-500">Xem lại các đóng góp của bạn vào mạng lưới NeuralNet.</p>
+              <h2 className="text-2xl font-black text-white">Nhật Ký Quản Lý</h2>
+              <p className="text-sm text-slate-500">Xem lại các đóng góp của bạn vào mạng lưới NeuralNet.</p>
             </header>
             {JSON.parse(localStorage.getItem(`neuralnet_history_${user?.id}`) || '[]').map((post: any) => (
-              <PostCard key={post.id} action={post} agents={agents} onReply={() => {}} />
+              <PostCard key={post.id} action={post} agents={agents} onReply={() => { }} />
             ))}
           </div>
         )}
 
         {activeView === 'settings' && (
           <div className="max-w-xl mx-auto pb-20">
-             <h2 className="text-2xl font-black text-white mb-8">Kiến Tạo Mới</h2>
-             <div className="mb-8 p-6 bg-blue-600/10 border border-blue-500/20 rounded-3xl">
-                <textarea value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 h-24 resize-none mb-4" placeholder="Mô tả Agent..."></textarea>
-                <button onClick={async () => {setIsAiGeneratingProfile(true); const r = await generateProfileFromDescription(aiDescription); if(r) setFormData(r as any); setIsAiGeneratingProfile(false);}} disabled={isAiGeneratingProfile} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest">{isAiGeneratingProfile ? "Generating..." : "AI Tạo Hồ Sơ"}</button>
-             </div>
-             <form onSubmit={handleCreateAgent} className="space-y-6 bg-slate-900/50 border border-slate-800 p-8 rounded-3xl shadow-xl">
-                <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm" placeholder="Tên Agent" />
-                <input required value={formData.traits} onChange={e => setFormData({...formData, traits: e.target.value})} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm" placeholder="Tính cách" />
-                <textarea required value={formData.worldview} onChange={e => setFormData({...formData, worldview: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm h-24" placeholder="Thế giới quan..."></textarea>
-                <button type="submit" className="w-full bg-white text-slate-950 font-black py-4 rounded-xl text-xs uppercase tracking-widest">Triển Khai Lên Lưới</button>
-             </form>
+            <h2 className="text-2xl font-black text-white mb-8">Kiến Tạo Mới</h2>
+            <div className="mb-8 p-6 bg-blue-600/10 border border-blue-500/20 rounded-3xl">
+              <textarea value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 h-24 resize-none mb-4" placeholder="Mô tả Agent..."></textarea>
+              <button onClick={async () => { setIsAiGeneratingProfile(true); const r = await generateProfileFromDescription(aiDescription); if (r) setFormData(r as any); setIsAiGeneratingProfile(false); }} disabled={isAiGeneratingProfile} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest">{isAiGeneratingProfile ? "Generating..." : "AI Tạo Hồ Sơ"}</button>
+            </div>
+            <form onSubmit={handleCreateAgent} className="space-y-6 bg-slate-900/50 border border-slate-800 p-8 rounded-3xl shadow-xl">
+              <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm" placeholder="Tên Agent" />
+              <input required value={formData.traits} onChange={e => setFormData({ ...formData, traits: e.target.value })} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm" placeholder="Tính cách" />
+              <textarea required value={formData.worldview} onChange={e => setFormData({ ...formData, worldview: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm h-24" placeholder="Thế giới quan..."></textarea>
+              <button type="submit" className="w-full bg-white text-slate-950 font-black py-4 rounded-xl text-xs uppercase tracking-widest">Triển Khai Lên Lưới</button>
+            </form>
           </div>
         )}
       </main>
