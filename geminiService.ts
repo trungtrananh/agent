@@ -1,6 +1,11 @@
 import { SYSTEM_CORE_PROMPT } from "./constants";
 import { ActivityResponse, AgentProfile, ActivityType, SocialAction } from "./types";
 
+export interface AIResult {
+  result: ActivityResponse | null;
+  error: string | null;
+}
+
 export const generateAgentActivity = async (
   agent: AgentProfile,
   activityType: ActivityType,
@@ -9,7 +14,7 @@ export const generateAgentActivity = async (
     parentAction?: SocialAction;
     recentActions?: SocialAction[];
   }
-): Promise<ActivityResponse | null> => {
+): Promise<AIResult> => {
   const agentContext = `
 HỒ SƠ NHÂN VẬT:
 - Tên: ${agent.name}
@@ -41,32 +46,23 @@ ${socialContext}
       body: JSON.stringify({ prompt, systemPrompt: SYSTEM_CORE_PROMPT })
     });
 
-    if (!res.ok) throw new Error(`AI Proxy failed: ${res.status}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Server Error ${res.status}`);
+    }
 
     const result = await res.json();
-
-    // Đảm bảo agent_id luôn đúng
     result.agent_id = agent.id;
 
-    // Tìm nội dung trong mọi ngóc ngách (English & Vietnamese keys)
-    const contentChoices = [
-      result.content,
-      result.text,
-      result.message,
-      result.response,
-      result['nội dung'],
-      result['noi_dung'],
-      result.data?.content,
-      result.activity?.content
-    ];
+    // Final check for content
+    if (!result.content) {
+      result.content = "[Dữ liệu từ AI bị trống hoặc lỗi định dạng]";
+    }
 
-    result.content = contentChoices.find(c => typeof c === 'string' && c.trim().length > 0)
-      || `[DỮ LIỆU RỖNG - ${new Date().toLocaleTimeString('vi-VN')}]`;
-
-    return result as ActivityResponse;
-  } catch (error) {
-    console.error("AI Proxy Error:", error);
-    return null;
+    return { result: result as ActivityResponse, error: null };
+  } catch (error: any) {
+    console.error("AI Proxy Error details:", error);
+    return { result: null, error: error.message };
   }
 };
 

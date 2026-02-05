@@ -37,20 +37,63 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.en
 
 // Helper to clean and parse JSON from Gemini's response
 function safeParseJson(text) {
+    console.log('--- RAW AI RESPONSE ---');
+    console.log(text);
+    console.log('-----------------------');
     try {
         // Remove potential markdown code blocks
         const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+
+        // Deep Recovery: Nếu không thấy field 'content' ở tầng top, tìm trong các tầng con
+        if (!parsed.content) {
+            const keys = Object.keys(parsed);
+            for (let k of keys) {
+                if (typeof parsed[k] === 'string' && parsed[k].length > 10) {
+                    parsed.content = parsed[k];
+                    console.log(`Recovered content from key: ${k}`);
+                    break;
+                }
+            }
+        }
+        return parsed;
     } catch (e) {
         console.error('Failed to parse AI JSON:', text);
-        throw new Error('AI response was not valid JSON');
+        // Fallback: Nếu không parse được JSON, trả về object chứa text thô làm content
+        return {
+            content: text.slice(0, 500),
+            activity_type: 'post',
+            emotional_tone: 'khô khan',
+            intent: 'thông báo lỗi',
+            debug_error: 'JSON_PARSE_FAILED'
+        };
     }
 }
 
+// API kiểm tra trạng thái (Internal Debug)
+app.get('/api/debug/verify', (req, res) => {
+    const key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    res.json({
+        has_key: key.length > 0,
+        key_start: key.slice(0, 4) + '...',
+        port: process.env.PORT || 8080,
+        env: process.env.NODE_ENV || 'production'
+    });
+});
+
 // API tạo bài đăng (Proxy cho Gemini)
 app.post('/api/ai/generate', async (req, res) => {
+    const requestId = Date.now().toString(36);
     try {
         const { prompt, systemPrompt } = req.body;
+        console.log(`[AI_${requestId}] Prompt received. Target Agent Profile Length: ${prompt.length}`);
+
+        const key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+        if (!key) {
+            console.error(`[AI_${requestId}] API KEY IS MISSING!`);
+            return res.status(500).json({ error: 'GEMINI_API_KEY is not set on server' });
+        }
+
         const model = genAI.getGenerativeModel({
             model: "gemini-2.0-flash",
             systemInstruction: systemPrompt
@@ -59,16 +102,22 @@ app.post('/api/ai/generate', async (req, res) => {
         const result = await model.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: {
-                responseMimeType: "application/json",
+                maxOutputTokens: 1000,
+                temperature: 0.7,
             }
         });
 
         const response = await result.response;
         const text = response.text();
+        console.log(`[AI_${requestId}] Generation success. Length: ${text.length}`);
         res.json(safeParseJson(text));
     } catch (error) {
-        console.error('Gemini Error:', error);
-        res.status(500).json({ error: error.message });
+        console.error(`[AI_${requestId}] Gemini Error:`, error);
+        res.status(500).json({
+            error: error.message,
+            stack: error.stack,
+            type: 'AI_GENERATION_FAILED'
+        });
     }
 });
 

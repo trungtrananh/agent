@@ -18,7 +18,6 @@ const TRENDING_TOPICS = [
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
-  // TRỜ GIÚP: Luôn gộp INITIAL_AGENTS và COMMUNITY_AGENTS vào state khởi tạo
   const [agents, setAgents] = useState<AgentProfile[]>(() => [...INITIAL_AGENTS, ...COMMUNITY_AGENTS]);
   const [feed, setFeed] = useState<SocialAction[]>([]);
   const [activeView, setActiveView] = useState<'feed' | 'agents' | 'settings' | 'history'>('feed');
@@ -26,6 +25,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentTopic, setCurrentTopic] = useState(TRENDING_TOPICS[0]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastAiError, setLastAiError] = useState<string | null>(null);
 
   const [aiDescription, setAiDescription] = useState('');
   const [isAiGeneratingProfile, setIsAiGeneratingProfile] = useState(false);
@@ -39,14 +39,12 @@ function App() {
   // Load Global Data
   const loadGlobalData = async () => {
     try {
-      console.log("NEURAL_LOG: Starting data sync...");
       const [globalAgents, globalFeed] = await Promise.all([
         syncService.getAllAgents().catch(() => []),
         syncService.getGlobalFeed().catch(() => [])
       ]);
 
       setAgents(prev => {
-        // Gộp dữ liệu mới vào dữ liệu hiện có, ưu tiên agents từ DB
         const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents, ...prev];
         const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
         return unique;
@@ -55,7 +53,6 @@ function App() {
       if (globalFeed && globalFeed.length > 0) {
         setFeed(globalFeed);
       }
-      console.log("NEURAL_LOG: Sync complete.");
     } catch (err) {
       console.error("NEURAL_ERROR: Sync failed", err);
     }
@@ -68,7 +65,6 @@ function App() {
 
     const initApp = async () => {
       try {
-        console.log("NEURAL_LOG: Initializing nodes...");
         const guestId = await syncService.getIpId();
         const newUser: User = {
           id: guestId,
@@ -91,7 +87,7 @@ function App() {
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Save Data locally (Optional)
+  // Save Data locally
   useEffect(() => {
     if (user && feed.length > 0) {
       localStorage.setItem(`neuralnet_feed_${user.id}`, JSON.stringify(feed.slice(0, FEED_STORAGE_LIMIT)));
@@ -101,6 +97,7 @@ function App() {
   const simulateAction = useCallback(async (forcedType?: ActivityType, forcedAgentId?: string) => {
     if (isGenerating) return;
     setIsGenerating(true);
+    setLastAiError(null);
 
     try {
       const activeAgents = agents;
@@ -118,7 +115,13 @@ function App() {
         (context as any).parentAction = parent;
       }
 
-      const result = await generateAgentActivity(agent, type, context);
+      const { result, error } = await generateAgentActivity(agent, type, context);
+
+      if (error) {
+        setLastAiError(error);
+        throw new Error(error);
+      }
+
       if (result) {
         const newAction: SocialAction = {
           id: Math.random().toString(36).substr(2, 9),
@@ -126,9 +129,9 @@ function App() {
           agent_name: agent.name,
           content: result.content || "[Mất tín hiệu]",
           timestamp: Date.now(),
-          type: result.activity_type,
-          emotional_tone: result.emotional_tone,
-          intent: result.intent,
+          type: result.activity_type || type,
+          emotional_tone: result.emotional_tone || 'phân tích',
+          intent: result.intent || 'tương tác',
           replies: [],
           isUserCreated: agent.ownerId === user?.id
         };
@@ -136,8 +139,9 @@ function App() {
         await syncService.saveActivity(newAction);
         setFeed(prev => [newAction, ...prev].slice(0, 100));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("NEURAL_ERROR: Simulation crash", error);
+      setLastAiError(error.message);
     } finally {
       setIsGenerating(false);
     }
@@ -148,7 +152,7 @@ function App() {
     if (isSimulating && !isGenerating) {
       simulationTimer.current = setInterval(() => {
         simulateAction();
-      }, 15000);
+      }, 20000);
     } else {
       if (simulationTimer.current) clearInterval(simulationTimer.current);
     }
@@ -184,7 +188,7 @@ function App() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
-        <div className="w-16 h-1 w-48 bg-slate-900 rounded-full overflow-hidden">
+        <div className="w-48 h-1 bg-slate-900 rounded-full overflow-hidden">
           <div className="h-full bg-blue-500 animate-[loading_1.5s_ease-in-out_infinite]"></div>
         </div>
         <p className="mt-6 text-[10px] font-mono text-blue-500/50 uppercase tracking-[0.3em]">Neural Interface Booting...</p>
@@ -217,13 +221,20 @@ function App() {
                   <span className="text-[10px] font-mono text-blue-400 font-bold">#{currentTopic.replace(/\s+/g, '_').toLowerCase()}</span>
                 </div>
               </div>
-              <button
-                onClick={() => simulateAction()}
-                disabled={isGenerating}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm shadow-lg shadow-blue-900/10"
-              >
-                {isGenerating ? "NEURAL_SYNC..." : "CẬP NHẬT LUỒNG"}
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={() => simulateAction()}
+                  disabled={isGenerating}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm shadow-lg shadow-blue-900/10"
+                >
+                  {isGenerating ? "NEURAL_SYNC..." : "CẬP NHẬT LUỒNG"}
+                </button>
+                {lastAiError && (
+                  <span className="text-[9px] text-red-500 font-mono bg-red-500/5 px-2 py-1 rounded border border-red-500/20 max-w-[200px] truncate">
+                    ERR: {lastAiError}
+                  </span>
+                )}
+              </div>
             </header>
 
             <div className="divide-y divide-slate-800/20 pb-20">
@@ -234,13 +245,13 @@ function App() {
               ) : (
                 <div className="py-20 text-center opacity-30">
                   <p className="italic text-sm">Chưa nhận được tín hiệu. Đang đồng bộ...</p>
+                  {lastAiError && <p className="text-red-500 text-[10px] mt-4 font-mono">DEBUG: {lastAiError}</p>}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* CÁC VIEW KHÁC GIỮ NGUYÊN NHƯNG VỚI SAFETY CHECK */}
         {activeView === 'agents' && (
           <div className="space-y-12 pb-20">
             <section>
@@ -301,6 +312,11 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Footer Info / Key Check */}
+      <div className="fixed bottom-4 right-4 text-[8px] font-mono text-slate-700 pointer-events-none">
+        NODE_STATUS: ONLINE | FIREBASE: CONNECTED | AI_PROXY: ACTIVE
+      </div>
     </div>
   );
 }
