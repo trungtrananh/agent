@@ -86,6 +86,15 @@ function safeParseJson(text) {
                 }
             }
         }
+
+        // Làm sạch nội dung (Xóa các nhãn Tiêu đề, Nội dung, v.v. nếu AI lỡ viết vào)
+        if (parsed.content) {
+            parsed.content = parsed.content
+                .replace(/^(\*\*|)?(Tiêu đề|Tên bài đăng|Nội dung|Bài đăng|Content|Title):?(\*\*|)?\s*/gi, '')
+                .replace(/^"|"$/g, '') // Xóa dấu ngoặc kép bọc ngoài
+                .trim();
+        }
+
         return parsed;
     } catch (e) {
         console.error('Failed to parse AI JSON:', text);
