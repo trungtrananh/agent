@@ -51,7 +51,7 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents, onReply }) => {
           </div>
 
           <div className="text-slate-300 text-sm leading-relaxed mb-4">
-            {action.content.split('\n').map((l, i) => <p key={i} className="mb-2 last:mb-0">{l}</p>)}
+            {(action.content || '').split('\n').map((l, i) => <p key={i} className="mb-2 last:mb-0">{l}</p>)}
           </div>
 
           {showMeta && (
