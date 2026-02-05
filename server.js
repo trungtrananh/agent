@@ -4,7 +4,6 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Firestore } from '@google-cloud/firestore';
-import { createClient } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,9 +14,18 @@ const PORT = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json());
 
-// Ưu tiên mở cổng ngay lập tức
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ SERVER ACTIVE ON PORT ${PORT}`);
+// BƯỚC 1: Mở cổng ngay lập tức để Cloud Run không bị timeout
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ NEURALNET CORE ACTIVE ON PORT ${PORT}`);
+});
+
+// Xử lý lỗi process để tránh crash container
+process.on('uncaughtException', (err) => {
+    console.error('BẮT ĐƯỢC LỖI HỆ THỐNG (Uncaught Exception):', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('BẮT ĐƯỢC LỖI PROMISE (Unhandled Rejection):', reason);
 });
 
 const distPath = path.join(__dirname, 'dist');
@@ -29,12 +37,36 @@ try {
     db = new Firestore();
     agentsCol = db.collection('agents');
     feedCol = db.collection('feed');
-} catch (e) { console.error('Firestore init failed'); }
+    console.log('✅ Firestore linked');
+} catch (e) {
+    console.error('❌ Firestore init failed (Using ephemeral mode)');
+}
 
-// Khởi tạo Gemini Client (SDK mới: @google/genai)
-const client = createClient({
-    apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '',
-});
+// Khởi tạo Gemini Client (Sử dụng cấu trúc an toàn)
+let client = null;
+const initAi = async () => {
+    try {
+        // Thử import động để tránh lỗi crash lúc boot nếu package có vấn đề
+        const genaiModule = await import("@google/genai");
+        // Theo tài liệu mới nhất, thường là GoogleGenAI hoặc createClient
+        // Chúng ta sẽ thử lấy đúng constructor
+        const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+
+        if (genaiModule.createClient) {
+            client = genaiModule.createClient({ apiKey });
+            console.log('✅ Gemini Client initialized via createClient');
+        } else if (genaiModule.GoogleGenAI) {
+            client = new genaiModule.GoogleGenAI({ apiKey });
+            console.log('✅ Gemini Client initialized via GoogleGenAI');
+        } else {
+            console.error('❌ Could not find valid Gemini constructor in @google/genai');
+        }
+    } catch (e) {
+        console.error('❌ AI Initialization Failed:', e);
+    }
+};
+
+initAi();
 
 // Helper to clean and parse JSON from Gemini's response
 function safeParseJson(text) {
@@ -42,17 +74,14 @@ function safeParseJson(text) {
     console.log(text);
     console.log('-----------------------');
     try {
-        // Remove potential markdown code blocks
         const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleaned);
 
-        // Deep Recovery: Nếu không thấy field 'content' ở tầng top, tìm trong các tầng con
         if (!parsed.content) {
             const keys = Object.keys(parsed);
             for (let k of keys) {
                 if (typeof parsed[k] === 'string' && parsed[k].length > 10) {
                     parsed.content = parsed[k];
-                    console.log(`Recovered content from key: ${k}`);
                     break;
                 }
             }
@@ -75,8 +104,8 @@ app.get('/api/debug/verify', (req, res) => {
     const key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
     res.json({
         has_key: key.length > 0,
-        key_start: key.slice(0, 4) + '...',
         port: PORT,
+        ai_ready: client !== null,
         sdk: '@google/genai'
     });
 });
@@ -86,32 +115,35 @@ app.post('/api/ai/generate', async (req, res) => {
     const requestId = Date.now().toString(36);
     try {
         const { prompt, systemPrompt } = req.body;
-        console.log(`[AI_${requestId}] Using new Client SDK pattern.`);
 
-        const key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-        if (!key) throw new Error('GEMINI_API_KEY is not set');
+        if (!client) {
+            return res.status(500).json({ error: 'AI Client not initialized' });
+        }
 
-        // SDK mới sử dụng client.models.generateContent
-        const response = await client.models.generateContent({
-            model: "gemini-2.0-flash",
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            systemInstruction: systemPrompt,
-            config: {
-                maxOutputTokens: 1000,
-                temperature: 0.7,
-            }
-        });
+        let text = "";
 
-        // Lấy text từ SDK mới
-        const text = response.value ? (response.value.text ? response.value.text() : JSON.stringify(response.value)) : "AI rỗng";
-        console.log(`[AI_${requestId}] Response received.`);
+        // Hỗ trợ cả 2 kiểu pattern (Client mới và GoogleGenAI cũ)
+        if (client.models && client.models.generateContent) {
+            // New pattern (@google/genai)
+            const response = await client.models.generateContent({
+                model: "gemini-2.0-flash",
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                systemInstruction: systemPrompt,
+                config: { temperature: 0.7 }
+            });
+            text = response.value ? (response.value.text ? response.value.text() : JSON.stringify(response.value)) : "AI Empty Output";
+        } else if (client.getGenerativeModel) {
+            // Old pattern (@google/generative-ai style but in @google/genai)
+            const model = client.getGenerativeModel({ model: "gemini-2.0-flash", systemInstruction: systemPrompt });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            text = response.text();
+        }
+
         res.json(safeParseJson(text));
     } catch (error) {
-        console.error(`[AI_${requestId}] Critical Error:`, error);
-        res.status(500).json({
-            error: error.message,
-            type: 'SDK_CLIENT_ERROR'
-        });
+        console.error(`[AI_${requestId}] Error:`, error);
+        res.status(500).json({ error: error.message });
     }
 });
 
