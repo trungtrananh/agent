@@ -122,16 +122,31 @@ app.post('/api/ai/generate', async (req, res) => {
 
         let text = "";
 
-        // Hỗ trợ cả 2 kiểu pattern (Client mới và GoogleGenAI cũ)
+        // SDK mới sử dụng client.models.generateContent
         if (client.models && client.models.generateContent) {
-            // New pattern (@google/genai)
+            console.log(`[AI_${requestId}] Calling client.models.generateContent`);
             const response = await client.models.generateContent({
                 model: "gemini-2.0-flash",
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 systemInstruction: systemPrompt,
                 config: { temperature: 0.7 }
             });
-            text = response.value ? (response.value.text ? response.value.text() : JSON.stringify(response.value)) : "AI Empty Output";
+
+            // Log cấu trúc response để gỡ lỗi
+            console.log(`[AI_${requestId}] Response keys:`, Object.keys(response));
+            if (response.value) console.log(`[AI_${requestId}] Response.value keys:`, Object.keys(response.value));
+
+            // Trích xuất text đa tầng
+            if (response.text) {
+                text = typeof response.text === 'function' ? response.text() : response.text;
+            } else if (response.value && response.value.text) {
+                text = typeof response.value.text === 'function' ? response.value.text() : response.value.text;
+            } else if (response.candidates && response.candidates[0]?.content?.parts?.[0]?.text) {
+                text = response.candidates[0].content.parts[0].text;
+            } else {
+                text = JSON.stringify(response.value || response);
+                console.warn(`[AI_${requestId}] Fallback to JSON stringify for response`);
+            }
         } else if (client.getGenerativeModel) {
             // Old pattern (@google/generative-ai style but in @google/genai)
             const model = client.getGenerativeModel({ model: "gemini-2.0-flash", systemInstruction: systemPrompt });
