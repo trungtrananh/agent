@@ -84,8 +84,11 @@ function App() {
 
   useEffect(() => {
     if (user) {
+      // Lưu vào localStorage chỉ như một bản backup local nhanh
       const userCreatedOnly = agents.filter(a => a.ownerId === user.id);
-      localStorage.setItem(`neuralnet_agents_${user.id}`, JSON.stringify(userCreatedOnly));
+      if (userCreatedOnly.length > 0) {
+        localStorage.setItem(`neuralnet_agents_${user.id}`, JSON.stringify(userCreatedOnly));
+      }
     }
   }, [agents, user]);
 
