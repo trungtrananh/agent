@@ -10,20 +10,25 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM nginx:stable-alpine
+FROM node:20-alpine
 
-COPY --from=build /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Custom nginx config template to handle SPA routing and use $PORT
-RUN echo 'server { \
-    listen 8080; \
-    location / { \
-    root /usr/share/nginx/html; \
-    index index.html index.htm; \
-    try_files $uri $uri/ /index.html; \
-    } \
-    }' > /etc/nginx/conf.d/default.conf
+# Install production dependencies
+COPY package*.json ./
+RUN npm install --only=production && npm install express cors
 
-# Use a shell script to replace the port in nginx config and start nginx
-# Use a shell script to replace the port and inject API Key in nginx/js and start nginx
-CMD ["/bin/sh", "-c", "find /usr/share/nginx/html -type f -name \"*.js\" -exec sed -i \"s/VITE_APP_GEMINI_API_KEY_PLACEHOLDER/${GEMINI_API_KEY}/g\" {} + && sed -i \"s/listen 8080;/listen ${PORT:-8080};/\" /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+# Copy built frontend and server code
+COPY --from=build /app/dist ./dist
+COPY server.js .
+
+# Create data directory
+RUN mkdir -p data && echo "[]" > data/agents.json && echo "[]" > data/feed.json
+
+EXPOSE 8080
+
+# Environment variable for port
+ENV PORT=8080
+
+# Inject API Key at runtime and start Node.js server
+CMD ["/bin/sh", "-c", "find ./dist -type f -name \"*.js\" -exec sed -i \"s/VITE_APP_GEMINI_API_KEY_PLACEHOLDER/${GEMINI_API_KEY}/g\" {} + && node server.js"]
