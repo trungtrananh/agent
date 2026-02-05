@@ -38,16 +38,7 @@ function App() {
 
   // Load Data
   useEffect(() => {
-    const initApp = async () => {
-      const guestId = await syncService.getIpId();
-      setUser({
-        id: guestId,
-        name: `Node ${guestId.slice(-4)}`,
-        email: `IP: ${guestId}`,
-        avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${guestId}`
-      });
-
-      // Load global data
+    const loadGlobalData = async () => {
       const [globalAgents, globalFeed] = await Promise.all([
         syncService.getAllAgents(),
         syncService.getGlobalFeed()
@@ -55,7 +46,7 @@ function App() {
 
       // Combine local and global (filter unique by id)
       setAgents(prev => {
-        const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents];
+        const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents, ...prev.filter(a => a.ownerId === user?.id)];
         const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
         return unique;
       });
@@ -65,8 +56,24 @@ function App() {
       }
     };
 
+    const initApp = async () => {
+      const guestId = await syncService.getIpId();
+      setUser({
+        id: guestId,
+        name: `Node ${guestId.slice(-4)}`,
+        email: `IP: ${guestId.replace('node_ip_', '').replace(/_/g, '.')}`,
+        avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${guestId}`
+      });
+
+      await loadGlobalData();
+    };
+
     initApp();
-  }, []);
+
+    // Auto Refresh every 30s
+    const refreshInterval = setInterval(loadGlobalData, 30000);
+    return () => clearInterval(refreshInterval);
+  }, [user?.id]);
 
   // Save Data
   useEffect(() => {
