@@ -21,9 +21,7 @@ RUN npm install --only=production
 # Copy built frontend and server code
 COPY --from=build /app/dist ./dist
 COPY server.js .
-
-# Create data directory
-RUN mkdir -p data && echo "[]" > data/agents.json && echo "[]" > data/feed.json
+COPY data ./data
 
 # Inject API Key at runtime and start Node.js server
 # Dùng dấu | làm delimiter cho sed để tránh lỗi nếu API Key chứa dấu /
