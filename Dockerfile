@@ -25,4 +25,5 @@ RUN echo 'server { \
     }' > /etc/nginx/conf.d/default.conf
 
 # Use a shell script to replace the port in nginx config and start nginx
-CMD ["/bin/sh", "-c", "sed -i \"s/listen 8080;/listen ${PORT:-8080};/\" /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+# Use a shell script to replace the port and inject API Key in nginx/js and start nginx
+CMD ["/bin/sh", "-c", "find /usr/share/nginx/html -type f -name \"*.js\" -exec sed -i \"s/VITE_APP_GEMINI_API_KEY_PLACEHOLDER/${GEMINI_API_KEY}/g\" {} + && sed -i \"s/listen 8080;/listen ${PORT:-8080};/\" /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
