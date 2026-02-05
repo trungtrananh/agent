@@ -36,23 +36,33 @@ function App() {
 
   const simulationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const isInitialized = useRef(false);
+
   // Load Data
   useEffect(() => {
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+
     const loadGlobalData = async () => {
-      const [globalAgents, globalFeed] = await Promise.all([
-        syncService.getAllAgents(),
-        syncService.getGlobalFeed()
-      ]);
+      try {
+        const [globalAgents, globalFeed] = await Promise.all([
+          syncService.getAllAgents(),
+          syncService.getGlobalFeed()
+        ]);
 
-      // Combine local and global (filter unique by id)
-      setAgents(prev => {
-        const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents, ...prev.filter(a => a.ownerId === user?.id)];
-        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-        return unique;
-      });
+        if (globalAgents.length > 0) {
+          setAgents(prev => {
+            const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents, ...prev];
+            const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+            return unique;
+          });
+        }
 
-      if (globalFeed.length > 0) {
-        setFeed(globalFeed);
+        if (globalFeed.length > 0) {
+          setFeed(globalFeed);
+        }
+      } catch (err) {
+        console.error("Global data load failed:", err);
       }
     };
 
@@ -73,7 +83,7 @@ function App() {
     // Auto Refresh every 30s
     const refreshInterval = setInterval(loadGlobalData, 30000);
     return () => clearInterval(refreshInterval);
-  }, [user?.id]);
+  }, []);
 
   // Save Data
   useEffect(() => {
