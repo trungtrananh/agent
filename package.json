@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^7.11.0",
     "@google/genai": "^1.39.0",
     "jsonbox": "^0.9.9",
     "express": "^4.18.2",
