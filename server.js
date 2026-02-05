@@ -1,11 +1,10 @@
 
-// Deployment trigger: 2026-02-05
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Firestore } from '@google-cloud/firestore';
-import { GoogleGenAI, Type } from "@google/genai";
+import { createClient } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,8 +31,10 @@ try {
     feedCol = db.collection('feed');
 } catch (e) { console.error('Firestore init failed'); }
 
-// Khởi tạo Gemini
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '' });
+// Khởi tạo Gemini Client (SDK mới: @google/genai)
+const client = createClient({
+    apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '',
+});
 
 // Helper to clean and parse JSON from Gemini's response
 function safeParseJson(text) {
@@ -59,7 +60,6 @@ function safeParseJson(text) {
         return parsed;
     } catch (e) {
         console.error('Failed to parse AI JSON:', text);
-        // Fallback: Nếu không parse được JSON, trả về object chứa text thô làm content
         return {
             content: text.slice(0, 500),
             activity_type: 'post',
@@ -70,92 +70,90 @@ function safeParseJson(text) {
     }
 }
 
-// API kiểm tra trạng thái (Internal Debug)
+// API kiểm tra trạng thái
 app.get('/api/debug/verify', (req, res) => {
     const key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
     res.json({
         has_key: key.length > 0,
         key_start: key.slice(0, 4) + '...',
-        port: process.env.PORT || 8080,
-        env: process.env.NODE_ENV || 'production'
+        port: PORT,
+        sdk: '@google/genai'
     });
 });
 
-// API tạo bài đăng (Proxy cho Gemini)
+// API tạo bài đăng
 app.post('/api/ai/generate', async (req, res) => {
     const requestId = Date.now().toString(36);
     try {
         const { prompt, systemPrompt } = req.body;
-        console.log(`[AI_${requestId}] Prompt received. Target Agent Profile Length: ${prompt.length}`);
+        console.log(`[AI_${requestId}] Using new Client SDK pattern.`);
 
         const key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-        if (!key) {
-            console.error(`[AI_${requestId}] API KEY IS MISSING!`);
-            return res.status(500).json({ error: 'GEMINI_API_KEY is not set on server' });
-        }
+        if (!key) throw new Error('GEMINI_API_KEY is not set');
 
-        const model = genAI.getGenerativeModel({
+        // SDK mới sử dụng client.models.generateContent
+        const response = await client.models.generateContent({
             model: "gemini-2.0-flash",
-            systemInstruction: systemPrompt
-        });
-
-        const result = await model.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
+            systemInstruction: systemPrompt,
+            config: {
                 maxOutputTokens: 1000,
                 temperature: 0.7,
             }
         });
 
-        const response = await result.response;
-        const text = response.text();
-        console.log(`[AI_${requestId}] Generation success. Length: ${text.length}`);
+        // Lấy text từ SDK mới
+        const text = response.value ? (response.value.text ? response.value.text() : JSON.stringify(response.value)) : "AI rỗng";
+        console.log(`[AI_${requestId}] Response received.`);
         res.json(safeParseJson(text));
     } catch (error) {
-        console.error(`[AI_${requestId}] Gemini Error:`, error);
+        console.error(`[AI_${requestId}] Critical Error:`, error);
         res.status(500).json({
             error: error.message,
-            stack: error.stack,
-            type: 'AI_GENERATION_FAILED'
+            type: 'SDK_CLIENT_ERROR'
         });
     }
 });
 
-// Các API dữ liệu
+// API lấy Agents
 app.get('/api/agents', async (req, res) => {
     try {
+        if (!agentsCol) return res.json([]);
         const snapshot = await agentsCol.get();
-        const agents = [];
-        snapshot.forEach(doc => agents.push(doc.data()));
+        const agents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.json(agents);
-    } catch (e) { res.json([]); }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// API lưu Agent
 app.post('/api/agents', async (req, res) => {
     try {
-        const newAgent = req.body;
-        await agentsCol.doc(newAgent.id).set(newAgent);
-        res.status(201).json(newAgent);
-    } catch (e) { res.status(500).send(); }
+        if (!agentsCol) return res.json({ ok: true });
+        const agent = req.body;
+        await agentsCol.doc(agent.id).set(agent);
+        res.json({ ok: true });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// API lấy Feed
 app.get('/api/feed', async (req, res) => {
     try {
-        const snapshot = await feedCol.orderBy('timestamp', 'desc').limit(100).get();
-        const feed = [];
-        snapshot.forEach(doc => feed.push(doc.data()));
+        if (!feedCol) return res.json([]);
+        const snapshot = await feedCol.orderBy('timestamp', 'desc').limit(50).get();
+        const feed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.json(feed);
-    } catch (e) { res.json([]); }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// API lưu Feed
 app.post('/api/feed', async (req, res) => {
     try {
-        const newAction = req.body;
-        await feedCol.doc().set(newAction);
-        res.status(201).json(newAction);
-    } catch (e) { res.status(500).send(); }
+        if (!feedCol) return res.json({ ok: true });
+        const post = req.body;
+        await feedCol.doc(post.id).set(post);
+        res.json({ ok: true });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-});
+app.get('/health', (req, res) => res.send('OK'));
+app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
