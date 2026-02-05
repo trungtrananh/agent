@@ -18,7 +18,8 @@ const TRENDING_TOPICS = [
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [agents, setAgents] = useState<AgentProfile[]>([...INITIAL_AGENTS, ...COMMUNITY_AGENTS]);
+  // TRỜ GIÚP: Luôn gộp INITIAL_AGENTS và COMMUNITY_AGENTS vào state khởi tạo
+  const [agents, setAgents] = useState<AgentProfile[]>(() => [...INITIAL_AGENTS, ...COMMUNITY_AGENTS]);
   const [feed, setFeed] = useState<SocialAction[]>([]);
   const [activeView, setActiveView] = useState<'feed' | 'agents' | 'settings' | 'history'>('feed');
   const [isSimulating, setIsSimulating] = useState(false);
@@ -33,18 +34,19 @@ function App() {
   });
 
   const simulationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dataLoadedRef = useRef(false);
 
   // Load Global Data
   const loadGlobalData = async () => {
     try {
-      console.log("Fetching global data...");
+      console.log("NEURAL_LOG: Starting data sync...");
       const [globalAgents, globalFeed] = await Promise.all([
-        syncService.getAllAgents(),
-        syncService.getGlobalFeed()
+        syncService.getAllAgents().catch(() => []),
+        syncService.getGlobalFeed().catch(() => [])
       ]);
 
       setAgents(prev => {
-        // Luôn giữ INITIAL_AGENTS và COMMUNITY_AGENTS cố định nếu DB trống
+        // Gộp dữ liệu mới vào dữ liệu hiện có, ưu tiên agents từ DB
         const combined = [...INITIAL_AGENTS, ...COMMUNITY_AGENTS, ...globalAgents, ...prev];
         const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
         return unique;
@@ -53,15 +55,20 @@ function App() {
       if (globalFeed && globalFeed.length > 0) {
         setFeed(globalFeed);
       }
+      console.log("NEURAL_LOG: Sync complete.");
     } catch (err) {
-      console.error("Global data load failed:", err);
+      console.error("NEURAL_ERROR: Sync failed", err);
     }
   };
 
   // Initialization
   useEffect(() => {
+    if (dataLoadedRef.current) return;
+    dataLoadedRef.current = true;
+
     const initApp = async () => {
       try {
+        console.log("NEURAL_LOG: Initializing nodes...");
         const guestId = await syncService.getIpId();
         const newUser: User = {
           id: guestId,
@@ -70,16 +77,9 @@ function App() {
           avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${guestId}`
         };
         setUser(newUser);
-
-        // Load local history/data fallbacks if any
-        const localHistory = localStorage.getItem(`neuralnet_history_${guestId}`);
-        if (localHistory) {
-          // You could optionally merge this into feed or just keep for history view
-        }
-
         await loadGlobalData();
       } catch (e) {
-        console.error("Init App failed:", e);
+        console.error("NEURAL_ERROR: Init failed", e);
       } finally {
         setIsLoading(false);
       }
@@ -91,7 +91,7 @@ function App() {
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Save Data
+  // Save Data locally (Optional)
   useEffect(() => {
     if (user && feed.length > 0) {
       localStorage.setItem(`neuralnet_feed_${user.id}`, JSON.stringify(feed.slice(0, FEED_STORAGE_LIMIT)));
@@ -108,7 +108,7 @@ function App() {
         ? activeAgents.find(a => a.id === forcedAgentId)
         : activeAgents[Math.floor(Math.random() * activeAgents.length)];
 
-      if (!agent) throw new Error("No agent available");
+      if (!agent) throw new Error("No agent found for simulation");
 
       const type = forcedType || (Math.random() > 0.7 ? 'comment' : 'post');
 
@@ -133,26 +133,17 @@ function App() {
           isUserCreated: agent.ownerId === user?.id
         };
 
-        // Lưu vào Firestore
         await syncService.saveActivity(newAction);
-
-        // Update local state
         setFeed(prev => [newAction, ...prev].slice(0, 100));
-
-        // Nếu là hành động của user, lưu vào sử sách riêng
-        if (agent.ownerId === user?.id) {
-          const history = JSON.parse(localStorage.getItem(`neuralnet_history_${user.id}`) || '[]');
-          localStorage.setItem(`neuralnet_history_${user.id}`, JSON.stringify([newAction, ...history].slice(0, 20)));
-        }
       }
     } catch (error) {
-      console.error("Simulation error:", error);
+      console.error("NEURAL_ERROR: Simulation crash", error);
     } finally {
       setIsGenerating(false);
     }
   }, [agents, currentTopic, feed, user, isGenerating]);
 
-  // Auto simulation effect
+  // Auto simulation
   useEffect(() => {
     if (isSimulating && !isGenerating) {
       simulationTimer.current = setInterval(() => {
@@ -187,20 +178,28 @@ function App() {
     setActiveView('agents');
   };
 
-  const userAgents = agents.filter(a => a.ownerId === user?.id);
-  const communityAgents = agents.filter(a => a.ownerId !== user?.id && a.id !== 'sys1');
+  const userAgents = agents.filter(a => user && a.ownerId === user.id);
+  const communityAgents = agents.filter(a => !user || a.ownerId !== user.id);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-blue-500 font-mono text-sm">
-        <div className="w-12 h-12 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
-        <p className="animate-pulse">SYNCHRONIZING WITH NEURALNET...</p>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
+        <div className="w-16 h-1 w-48 bg-slate-900 rounded-full overflow-hidden">
+          <div className="h-full bg-blue-500 animate-[loading_1.5s_ease-in-out_infinite]"></div>
+        </div>
+        <p className="mt-6 text-[10px] font-mono text-blue-500/50 uppercase tracking-[0.3em]">Neural Interface Booting...</p>
+        <style>{`
+          @keyframes loading {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+        `}</style>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500/30">
+    <div className="flex min-h-screen bg-slate-950 text-slate-200">
       <Sidebar
         activeView={activeView} setActiveView={setActiveView}
         agents={agents} onAutoSimulate={() => setIsSimulating(!isSimulating)}
@@ -212,43 +211,40 @@ function App() {
           <div className="space-y-6">
             <header className="mb-8 border-b border-slate-800 pb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-black text-white tracking-tight">Lưới Toàn Cầu</h2>
+                <h2 className="text-2xl font-black text-white">Lưới Toàn Cầu</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tung độ:</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Xu hướng:</span>
                   <span className="text-[10px] font-mono text-blue-400 font-bold">#{currentTopic.replace(/\s+/g, '_').toLowerCase()}</span>
                 </div>
               </div>
               <button
                 onClick={() => simulateAction()}
                 disabled={isGenerating}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm shadow-lg shadow-blue-900/20"
+                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm shadow-lg shadow-blue-900/10"
               >
-                {isGenerating ? "Neural Sync..." : "Cập nhật Luồng"}
+                {isGenerating ? "NEURAL_SYNC..." : "CẬP NHẬT LUỒNG"}
               </button>
             </header>
 
-            <div className="divide-y divide-slate-800/40 pb-20">
+            <div className="divide-y divide-slate-800/20 pb-20">
               {feed.length > 0 ? (
                 feed.map(post => (
                   <PostCard key={post.id} action={post} agents={agents} onReply={() => simulateAction('comment')} />
                 ))
               ) : (
-                <div className="py-20 text-center space-y-4">
-                  <div className="w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center mx-auto text-slate-700">
-                    <svg className="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  </div>
-                  <p className="text-slate-500 italic text-sm">Chưa có tín hiệu nào trên lưới. Hãy nhấn "Cập nhật Luồng" để khởi tạo.</p>
+                <div className="py-20 text-center opacity-30">
+                  <p className="italic text-sm">Chưa nhận được tín hiệu. Đang đồng bộ...</p>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Other views remain identical but with safety checks if needed */}
+        {/* CÁC VIEW KHÁC GIỮ NGUYÊN NHƯNG VỚI SAFETY CHECK */}
         {activeView === 'agents' && (
-          <div className="space-y-12 animate-in fade-in duration-500 pb-20">
+          <div className="space-y-12 pb-20">
             <section>
-              <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+              <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-6 flex items-center gap-3">
                 <span className="w-8 h-px bg-blue-500/30"></span>
                 Thực thể của bạn ({userAgents.length})
               </h3>
@@ -264,7 +260,7 @@ function App() {
             </section>
 
             <section>
-              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
                 <span className="w-8 h-px bg-slate-800"></span>
                 Mạng lưới cộng đồng ({communityAgents.length})
               </h3>
@@ -278,18 +274,8 @@ function App() {
         )}
 
         {activeView === 'history' && (
-          <div className="space-y-6 pb-20">
-            <header className="mb-8 border-b border-slate-800 pb-6">
-              <h2 className="text-2xl font-black text-white">Lưu Trữ Node</h2>
-              <p className="text-sm text-slate-500">Các hành động được ghi lại trên máy chủ cục bộ của bạn.</p>
-            </header>
-            {(() => {
-              try {
-                const h = JSON.parse(localStorage.getItem(`neuralnet_history_${user?.id}`) || '[]');
-                if (h.length === 0) return <p className="text-slate-600 italic text-sm text-center py-20">Lịch sử trống.</p>;
-                return h.map((post: any) => <PostCard key={post.id} action={post} agents={agents} onReply={() => { }} />);
-              } catch (e) { return null; }
-            })()}
+          <div className="py-20 text-center text-slate-600 italic text-sm">
+            Nhật ký đang được cấu trúc lại trong database.
           </div>
         )}
 
@@ -297,29 +283,20 @@ function App() {
           <div className="max-w-xl mx-auto pb-20">
             <h2 className="text-2xl font-black text-white mb-8">Kiến Tạo Thực Thể</h2>
             <div className="mb-8 p-6 bg-blue-600/10 border border-blue-500/20 rounded-3xl">
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Sử dụng AI để phác thảo</p>
-              <textarea value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 h-24 resize-none mb-4" placeholder="Ví dụ: Một chú mèo triết học hay đặt những câu hỏi về sự tồn tại..."></textarea>
+              <textarea value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 h-24 resize-none mb-4" placeholder="Mô tả Agent..."></textarea>
               <button
-                onClick={async () => {
-                  setIsAiGeneratingProfile(true);
-                  const r = await generateProfileFromDescription(aiDescription);
-                  if (r) setFormData(prev => ({ ...prev, ...r as any }));
-                  setIsAiGeneratingProfile(false);
-                }}
+                onClick={async () => { setIsAiGeneratingProfile(true); const r = await generateProfileFromDescription(aiDescription); if (r) setFormData(prev => ({ ...prev, ...r as any })); setIsAiGeneratingProfile(false); }}
                 disabled={isAiGeneratingProfile}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-[10px] uppercase tracking-widest transition-colors shadow-lg shadow-blue-900/20"
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest"
               >
-                {isAiGeneratingProfile ? "DREAMING..." : "AI Dựng Chân Dung"}
+                {isAiGeneratingProfile ? "DREAMING..." : "AI Tạo Hồ Sơ"}
               </button>
             </div>
-            <form onSubmit={handleCreateAgent} className="space-y-6 bg-slate-900/50 border border-slate-800 p-8 rounded-3xl shadow-xl">
-              <div>
-                <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-2 block">Thông số định danh</label>
-                <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-slate-500 outline-none transition-colors" placeholder="Tên Agent" />
-              </div>
-              <input required value={formData.traits} onChange={e => setFormData({ ...formData, traits: e.target.value })} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-slate-500 outline-none transition-colors" placeholder="Tính cách tiêu biểu" />
-              <textarea required value={formData.worldview} onChange={e => setFormData({ ...formData, worldview: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm h-24 focus:border-slate-500 outline-none transition-colors resize-none" placeholder="Thế giới quan và niềm tin..."></textarea>
-              <button type="submit" className="w-full bg-white hover:bg-slate-200 text-slate-950 font-black py-4 rounded-xl text-[10px] uppercase tracking-widest transition-colors">Triển Khai Lên Lưới</button>
+            <form onSubmit={handleCreateAgent} className="space-y-6 bg-slate-900/50 border border-slate-800 p-8 rounded-3xl">
+              <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm" placeholder="Tên Agent" />
+              <input required value={formData.traits} onChange={e => setFormData({ ...formData, traits: e.target.value })} type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm" placeholder="Tính cách" />
+              <textarea required value={formData.worldview} onChange={e => setFormData({ ...formData, worldview: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm h-24" placeholder="Thế giới quan..."></textarea>
+              <button type="submit" className="w-full bg-white text-slate-950 font-black py-4 rounded-xl text-xs uppercase tracking-widest">Triển Khai Lên Lưới</button>
             </form>
           </div>
         )}
@@ -341,7 +318,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, isOwner, onAction }) => (
       <div>
         <h4 className="text-lg font-bold text-white leading-tight">{agent.name}</h4>
         <div className="flex items-center gap-2">
-          <p className="text-[10px] text-blue-400 mono">@{agent.id.slice(0, 8)}</p>
+          <p className="text-[10px] text-blue-400 font-mono">@{agent.id.slice(0, 8)}</p>
           <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter ${isOwner ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}>
             {isOwner ? 'Của bạn' : 'Cộng đồng'}
           </span>
@@ -351,7 +328,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, isOwner, onAction }) => (
     <p className="text-xs text-slate-400 line-clamp-2 mb-4 italic leading-relaxed">"{agent.worldview}"</p>
     {isOwner && (
       <button onClick={onAction} className="mt-auto w-full bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white py-2.5 rounded-xl text-xs font-bold transition-all border border-slate-700">
-        Kích hoạt hành động
+        KÍCH HOẠT HÀNH ĐỘNG
       </button>
     )}
   </div>
