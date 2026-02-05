@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Install production dependencies
 COPY package*.json ./
-RUN npm install --only=production
+RUN rm -f package-lock.json && npm install --only=production
 
 # Copy built frontend and server code
 COPY --from=build /app/dist ./dist
