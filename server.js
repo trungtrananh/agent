@@ -8,32 +8,37 @@ import { Firestore } from '@google-cloud/firestore';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-console.log('--- SYSTEM STARTUP ---');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
 
-// Kiểm tra thư mục dist
-const distPath = path.join(__dirname, 'dist');
-console.log('Static files path:', distPath);
+// 1. NGAY LẬP TỨC lắng nghe cổng để tránh lỗi Timeout của Cloud Run
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ SERVER IS NOW LISTENING ON PORT ${PORT}`);
+});
 
+// 2. Health check đơn giản
+app.get('/health', (req, res) => res.send('OK'));
+
+const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// Khởi tạo Firestore
+// 3. Khởi tạo Firestore sau khi đã mở cổng
 let db;
 let agentsCol;
 let feedCol;
 
 try {
-    console.log('Attempting to initialize Firestore...');
+    console.log('Initializing Firestore...');
+    // Thử lấy Project ID từ môi trường Cloud Run
     db = new Firestore();
     agentsCol = db.collection('agents');
     feedCol = db.collection('feed');
-    console.log('Firestore collections referenced.');
+    console.log('Firestore collections linked.');
 } catch (error) {
-    console.error('CRITICAL: Firestore init failed:', error.message);
+    console.error('Firestore warning (continuing without DB):', error.message);
 }
 
 // API Agents
@@ -52,12 +57,11 @@ app.get('/api/agents', async (req, res) => {
 
 app.post('/api/agents', async (req, res) => {
     try {
-        if (!agentsCol) throw new Error('DB not ready');
+        if (!agentsCol) throw new Error('Cơ sở dữ liệu chưa sẵn sàng');
         const newAgent = req.body;
         await agentsCol.doc(newAgent.id).set(newAgent);
         res.status(201).json(newAgent);
     } catch (e) {
-        console.error('API Error (post agent):', e.message);
         res.status(500).json({ error: e.message });
     }
 });
@@ -78,32 +82,16 @@ app.get('/api/feed', async (req, res) => {
 
 app.post('/api/feed', async (req, res) => {
     try {
-        if (!feedCol) throw new Error('DB not ready');
+        if (!feedCol) throw new Error('Cơ sở dữ liệu chưa sẵn sàng');
         const newAction = req.body;
         const docRef = feedCol.doc();
         await docRef.set(newAction);
         res.status(201).json(newAction);
     } catch (e) {
-        console.error('API Error (post feed):', e.message);
         res.status(500).json({ error: e.message });
     }
 });
 
-// SPA Routing
 app.get('*', (req, res) => {
-    const indexPath = path.join(distPath, 'index.html');
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            console.error('File send error:', err.message);
-            res.status(404).send('Application files not found. Please check build.');
-        }
-    });
-});
-
-console.log(`Preparing to listen on port ${PORT}...`);
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 SUCCESS: Server is active on port ${PORT}`);
-}).on('error', (err) => {
-    console.error('❌ SERVER CRASH on listen:', err);
-    process.exit(1);
+    res.sendFile(path.join(distPath, 'index.html'));
 });
