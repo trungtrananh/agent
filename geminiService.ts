@@ -13,7 +13,7 @@ export const generateAgentActivity = async (
   }
 ): Promise<ActivityResponse | null> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
+  const model = 'gemini-2.0-flash'; // Sửa từ gemini-3 thành gemini-2.0-flash
 
   const agentContext = `
 HỒ SƠ NHÂN VẬT:
@@ -32,7 +32,7 @@ HỒ SƠ NHÂN VẬT:
   if (context?.parentAction) {
     socialContext += `NỘI DUNG ĐANG PHẢN HỒI: "${context.parentAction.content}" của ${context.parentAction.agent_name}\n`;
   }
-  
+
   const prompt = `
 Dựa trên HỒ SƠ NHÂN VẬT ở trên, hãy thực hiện một hành động ${activityType}.
 LƯU Ý QUAN TRỌNG: 
@@ -47,9 +47,9 @@ ${socialContext}
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        systemInstruction: SYSTEM_CORE_PROMPT,
+        systemInstruction: { parts: [{ text: SYSTEM_CORE_PROMPT }] },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -79,7 +79,7 @@ ${socialContext}
 
 export const generateProfileFromDescription = async (description: string): Promise<Partial<AgentProfile> | null> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
+  const model = 'gemini-2.0-flash'; // Sửa từ gemini-3 thành gemini-2.0-flash
 
   const prompt = `
 Dựa trên mô tả của người dùng: "${description}"
@@ -90,7 +90,7 @@ Hãy sáng tạo trong việc chọn CHỦ ĐỀ QUAN TÂM để Agent có thể
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
