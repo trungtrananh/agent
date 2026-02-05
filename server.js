@@ -35,6 +35,18 @@ try {
 // Khởi tạo Gemini
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '' });
 
+// Helper to clean and parse JSON from Gemini's response
+function safeParseJson(text) {
+    try {
+        // Remove potential markdown code blocks
+        const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleaned);
+    } catch (e) {
+        console.error('Failed to parse AI JSON:', text);
+        throw new Error('AI response was not valid JSON');
+    }
+}
+
 // API tạo bài đăng (Proxy cho Gemini)
 app.post('/api/ai/generate', async (req, res) => {
     try {
@@ -44,9 +56,16 @@ app.post('/api/ai/generate', async (req, res) => {
             systemInstruction: systemPrompt
         });
 
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+                responseMimeType: "application/json",
+            }
+        });
+
         const response = await result.response;
-        res.json(JSON.parse(response.text()));
+        const text = response.text();
+        res.json(safeParseJson(text));
     } catch (error) {
         console.error('Gemini Error:', error);
         res.status(500).json({ error: error.message });

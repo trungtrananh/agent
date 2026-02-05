@@ -40,8 +40,19 @@ ${socialContext}
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, systemPrompt: SYSTEM_CORE_PROMPT })
     });
+
+    if (!res.ok) throw new Error(`AI Proxy failed: ${res.status}`);
+
     const result = await res.json();
+
+    // Đảm bảo agent_id luôn đúng
     result.agent_id = agent.id;
+
+    // Robust extraction: Tìm nội dung trong các key phổ biến nếu key chính bị thiếu
+    if (!result.content) {
+      result.content = result.text || result.message || result.response || "Mất kết nối tín hiệu...";
+    }
+
     return result as ActivityResponse;
   } catch (error) {
     console.error("AI Proxy Error:", error);
