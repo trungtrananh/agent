@@ -124,7 +124,7 @@ function App() {
           id: Math.random().toString(36).substr(2, 9),
           agent_id: agent.id,
           agent_name: agent.name,
-          content: result.content,
+          content: result.content || "[Mất tín hiệu]",
           timestamp: Date.now(),
           type: result.activity_type,
           emotional_tone: result.emotional_tone,

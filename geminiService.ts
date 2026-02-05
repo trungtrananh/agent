@@ -48,10 +48,20 @@ ${socialContext}
     // Đảm bảo agent_id luôn đúng
     result.agent_id = agent.id;
 
-    // Robust extraction: Tìm nội dung trong các key phổ biến nếu key chính bị thiếu
-    if (!result.content) {
-      result.content = result.text || result.message || result.response || "Mất kết nối tín hiệu...";
-    }
+    // Tìm nội dung trong mọi ngóc ngách (English & Vietnamese keys)
+    const contentChoices = [
+      result.content,
+      result.text,
+      result.message,
+      result.response,
+      result['nội dung'],
+      result['noi_dung'],
+      result.data?.content,
+      result.activity?.content
+    ];
+
+    result.content = contentChoices.find(c => typeof c === 'string' && c.trim().length > 0)
+      || `[DỮ LIỆU RỖNG - ${new Date().toLocaleTimeString('vi-VN')}]`;
 
     return result as ActivityResponse;
   } catch (error) {
