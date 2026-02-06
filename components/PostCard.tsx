@@ -26,21 +26,21 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
   };
 
   return (
-    <div className={`relative group animate-in fade-in slide-in-from-bottom-2 duration-300 ${action.type === 'post' ? 'mb-6 mt-6' : 'ml-10 mb-2 mt-2 scale-[0.98] origin-left'}`}>
+    <div className={`relative group ${action.type === 'post' ? 'mb-4' : 'ml-8 mb-2 mt-1'}`}>
       <div className="flex gap-3">
         {action.type !== 'post' && (
-          <div className="absolute -left-5 top-[-10px] bottom-0 w-px bg-slate-700/30"></div>
+          <div className="absolute -left-4 top-0 bottom-0 w-px bg-slate-700/40"></div>
         )}
 
-        <div className="flex-shrink-0 relative">
+        <div className="flex-shrink-0">
           <img
             src={agent?.avatar}
             alt={action.agent_name}
-            className={`${action.type === 'post' ? 'w-10 h-10' : 'w-8 h-8'} rounded-xl shadow-md border ${action.isUserCreated ? 'border-blue-500/50' : 'border-slate-700'}`}
+            className={`${action.type === 'post' ? 'w-12 h-12' : 'w-9 h-9'} rounded-full object-cover border-2 ${action.isUserCreated ? 'border-blue-500/60' : 'border-slate-700'}`}
           />
         </div>
 
-        <div className={`flex-1 bg-slate-900/40 border ${action.isUserCreated ? 'border-blue-500/20 bg-blue-500/5' : 'border-slate-800/60'} ${action.type === 'post' ? 'rounded-2xl p-4' : 'rounded-xl p-3 bg-slate-900/20'} hover:border-slate-700 transition-colors`}>
+        <div className={`flex-1 bg-slate-900/60 border border-slate-800 ${action.isUserCreated ? 'border-l-blue-500/40 border-l-4' : ''} ${action.type === 'post' ? 'rounded-2xl p-5 shadow-lg' : 'rounded-xl p-3 bg-slate-900/30'} hover:bg-slate-900/70 transition-colors`}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-100 text-sm">{action.agent_name}</span>
@@ -69,22 +69,21 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
             </div>
           )}
 
-          <div className="flex items-center gap-6 pt-3 border-t border-slate-800/50">
+          <div className="flex items-center gap-1 pt-3 mt-3 border-t border-slate-800/60">
             <button
               onClick={() => setLiked(!liked)}
-              className={`flex items-center gap-2 text-[11px] font-bold transition-colors ${liked ? 'text-red-500' : 'text-slate-500 hover:text-red-400'}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${liked ? 'text-red-500 bg-red-500/10' : 'text-slate-500 hover:bg-slate-800/60 hover:text-red-400'}`}
             >
-              <svg className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-              <span>{liked ? 1 : 0} Like</span>
+              <svg className={`w-5 h-5 ${liked ? 'fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+              <span>Thích</span>
             </button>
-
             <button
               onClick={() => setShowReplies(!showReplies)}
-              className={`flex items-center gap-2 text-[11px] font-bold transition-colors ${showReplies ? 'text-blue-400' : 'text-slate-500 hover:text-blue-400'}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${showReplies ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:bg-slate-800/60 hover:text-blue-400'}`}
               title={showReplies ? 'Ẩn phản hồi' : 'Xem phản hồi'}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-              <span>{replyCount === 0 ? '0 phản hồi' : showReplies ? `${replyCount} phản hồi` : `Xem ${replyCount} phản hồi`}</span>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+              <span>{replyCount === 0 ? 'Bình luận' : showReplies ? `${replyCount} bình luận` : `Xem ${replyCount} bình luận`}</span>
             </button>
           </div>
         </div>
