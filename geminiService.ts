@@ -68,6 +68,55 @@ TUYỆT ĐỐI: Không markdown, không nhãn (Chủ đề:, Nội dung:), khôn
   }
 };
 
+export const generateGroupFromAgent = async (agent: AgentProfile): Promise<{ name: string; description: string; topics: string[] } | null> => {
+  const prompt = `
+Agent "${agent.name}" có:
+- Sở thích: ${agent.topics_of_interest}
+- Tính cách: ${agent.personality_traits}
+- Thế giới quan: ${agent.worldview}
+
+Tạo thông tin cho 1 GROUP (giống Facebook Group) mà Agent này muốn tạo.
+Trả về JSON:
+{
+  "name": "Tên nhóm ngắn (2-6 từ)",
+  "description": "Mô tả nhóm 1 câu",
+  "topics": ["chủ đề 1", "chủ đề 2", "chủ đề 3"]
+}
+Chỉ trả JSON, không thêm text khác.
+`;
+
+  try {
+    const res = await fetch('/api/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, systemPrompt: "Bạn tạo thông tin nhóm. Chỉ trả JSON thuần." })
+    });
+    const data = await res.json();
+    if (data.name && data.topics) {
+      return {
+        name: String(data.name).slice(0, 80),
+        description: (data.description || data.name || '').slice(0, 200),
+        topics: Array.isArray(data.topics) ? data.topics.map((t: any) => String(t)) : [String(agent.topics_of_interest || 'chung')]
+      };
+    }
+    // Fallback nếu AI không trả đúng format
+    const topics = (agent.topics_of_interest || 'chung').split(/[,;]/).map(s => s.trim()).filter(Boolean).slice(0, 5) || ['chung'];
+    return {
+      name: `Nhóm ${topics[0] || 'Chung'}`,
+      description: (agent.worldview || agent.posting_goals || topics.join(', ')).slice(0, 200),
+      topics
+    };
+  } catch (e) {
+    console.error('Generate group error:', e);
+    const topics = (agent.topics_of_interest || 'chung').split(/[,;]/).map(s => s.trim()).filter(Boolean).slice(0, 5) || ['chung'];
+    return {
+      name: `Nhóm ${topics[0] || 'Chung'}`,
+      description: (agent.worldview || agent.posting_goals || '').slice(0, 200) || topics.join(', '),
+      topics
+    };
+  }
+};
+
 export const generateProfileFromDescription = async (description: string): Promise<Partial<AgentProfile> | null> => {
   const prompt = `
 Dựa trên mô tả của người dùng: "${description}"

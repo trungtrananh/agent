@@ -49,3 +49,14 @@ export interface TrendingTopic {
   topic: string;
   relevance: number;
 }
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  createdBy: string;
+  creatorName: string;
+  topics: string[];      // Chủ đề nhóm - dùng để match Agent
+  memberIds: string[];
+  createdAt: number;
+}

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AgentProfile, SocialAction, ActivityType, User } from './types';
+import { AgentProfile, SocialAction, ActivityType, User, Group } from './types';
 import { INITIAL_AGENTS, COMMUNITY_AGENTS } from './constants';
-import { generateAgentActivity, generateProfileFromDescription } from './geminiService';
+import { generateAgentActivity, generateProfileFromDescription, generateGroupFromAgent } from './geminiService';
 import Sidebar from './components/Sidebar';
 import PostCard from './components/PostCard';
 import { syncService } from './syncService';
@@ -13,7 +13,8 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>(() => [...INITIAL_AGENTS, ...COMMUNITY_AGENTS]);
   const [feed, setFeed] = useState<SocialAction[]>([]);
-  const [activeView, setActiveView] = useState<'feed' | 'agents' | 'settings' | 'history'>('feed');
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [activeView, setActiveView] = useState<'feed' | 'agents' | 'groups' | 'settings' | 'history'>('feed');
   const [isSimulating, setIsSimulating] = useState(true); // Tự động chạy - Agent tự đăng bài và comment
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,9 +32,10 @@ function App() {
   // Load Global Data
   const loadGlobalData = async () => {
     try {
-      const [globalAgents, globalFeed] = await Promise.all([
+      const [globalAgents, globalFeed, globalGroups] = await Promise.all([
         syncService.getAllAgents().catch(() => []),
-        syncService.getGlobalFeed().catch(() => [])
+        syncService.getGlobalFeed().catch(() => []),
+        syncService.getAllGroups().catch(() => [])
       ]);
 
       setAgents(prev => {
@@ -44,6 +46,13 @@ function App() {
 
       if (globalFeed && globalFeed.length > 0) {
         setFeed(buildActivityTree(globalFeed));
+      }
+
+      if (globalGroups && globalGroups.length > 0) {
+        setGroups(prev => {
+          const combined = [...globalGroups, ...prev];
+          return Array.from(new Map(combined.map(g => [g.id, g])).values());
+        });
       }
     } catch (err) {
       console.error("NEURAL_ERROR: Sync failed", err);
@@ -203,17 +212,69 @@ function App() {
     return roots;
   };
 
+  // Match Agent với Group - kiểm tra sở thích/tính cách trùng với topics của group
+  const agentMatchesGroup = useCallback((agent: AgentProfile, group: Group): boolean => {
+    const agentWords = `${agent.topics_of_interest} ${agent.personality_traits} ${agent.worldview}`
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .filter(w => w.length > 2);
+    const groupWords = (group.topics || []).map((t: string) => t.toLowerCase().split(/[\s,]+/)).flat().filter((w: string) => w.length > 2);
+    const overlap = agentWords.filter(w => groupWords.some((gw: string) => gw.includes(w) || w.includes(gw)));
+    return overlap.length >= 1;
+  }, []);
+
+  // Agent tạo Group hoặc Join Group (chạy độc lập, không chờ isGenerating)
+  const simulateGroupAction = useCallback(async () => {
+    if (agents.length === 0) return;
+    const roll = Math.random();
+    if (roll < 0.4 && groups.length < 20) {
+      // 40%: Agent tạo group mới
+      const agent = agents[Math.floor(Math.random() * agents.length)];
+      const info = await generateGroupFromAgent(agent);
+      if (info && info.name) {
+        const newGroup: Group = {
+          id: 'group_' + Math.random().toString(36).substr(2, 9),
+          name: info.name,
+          description: info.description || info.name,
+          createdBy: agent.id,
+          creatorName: agent.name,
+          topics: info.topics || [agent.topics_of_interest],
+          memberIds: [agent.id],
+          createdAt: Date.now()
+        };
+        await syncService.saveGroup(newGroup);
+        setGroups(prev => [newGroup, ...prev]);
+      }
+    } else if (roll >= 0.4 && groups.length > 0) {
+      // 60%: Agent join group phù hợp
+      const agent = agents[Math.floor(Math.random() * agents.length)];
+      const joinableGroups = groups.filter(g => agentMatchesGroup(agent, g) && !g.memberIds?.includes(agent.id));
+      if (joinableGroups.length > 0) {
+        const group = joinableGroups[Math.floor(Math.random() * joinableGroups.length)];
+        const updated = { ...group, memberIds: [...(group.memberIds || []), agent.id] };
+        await syncService.saveGroup(updated);
+        setGroups(prev => prev.map(g => g.id === group.id ? updated : g));
+      }
+    }
+  }, [agents, groups, agentMatchesGroup]);
+
   // Auto simulation
+  const groupTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (isSimulating && !isGenerating) {
       simulationTimer.current = setInterval(() => {
         simulateAction();
       }, 20000);
+      groupTimer.current = setInterval(simulateGroupAction, 45000);
     } else {
       if (simulationTimer.current) clearInterval(simulationTimer.current);
+      if (groupTimer.current) clearInterval(groupTimer.current);
     }
-    return () => { if (simulationTimer.current) clearInterval(simulationTimer.current); };
-  }, [isSimulating, isGenerating, simulateAction]);
+    return () => {
+      if (simulationTimer.current) clearInterval(simulationTimer.current);
+      if (groupTimer.current) clearInterval(groupTimer.current);
+    };
+  }, [isSimulating, isGenerating, simulateAction, simulateGroupAction]);
 
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,7 +334,7 @@ function App() {
         {activeView === 'feed' && (
           <div className="space-y-4">
             {/* Stats bar - Mobile/Tablet (hidden on xl when right sidebar shows) */}
-            <div className="xl:hidden flex gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-2xl mb-4">
+            <div className="xl:hidden flex flex-wrap gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-2xl mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500">Agent:</span>
                 <span className="text-sm font-bold text-blue-400">{agents.length}</span>
@@ -282,8 +343,12 @@ function App() {
                 <span className="text-xs text-slate-500">Bài đăng:</span>
                 <span className="text-sm font-bold text-emerald-400">{totalPosts}</span>
               </div>
-              <button onClick={() => setActiveView('agents')} className="text-xs text-blue-400 font-bold ml-auto hover:underline">
-                Xem Agent mới tạo →
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Nhóm:</span>
+                <span className="text-sm font-bold text-purple-400">{groups.length}</span>
+              </div>
+              <button onClick={() => setActiveView('groups')} className="text-xs text-blue-400 font-bold ml-auto hover:underline">
+                Xem Nhóm →
               </button>
             </div>
 
@@ -365,6 +430,55 @@ function App() {
         }
 
         {
+          activeView === 'groups' && (
+            <div className="space-y-8 pb-20">
+              <div>
+                <h2 className="text-2xl font-black text-white mb-2">Các Nhóm</h2>
+                <p className="text-sm text-slate-500">Agent tự tạo và tham gia nhóm theo sở thích, tính cách</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {groups.length > 0 ? (
+                  groups.map(group => {
+                    const memberAgents = (group.memberIds || []).map((id: string) => agents.find(a => a.id === id)).filter(Boolean) as AgentProfile[];
+                    return (
+                      <div key={group.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-white truncate">{group.name}</h3>
+                            <p className="text-xs text-slate-500">Bởi {group.creatorName}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-400 mb-4 line-clamp-2">{group.description}</p>
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {(group.topics || []).slice(0, 3).map((t: string, i: number) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{t}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
+                          <div className="flex -space-x-2">
+                            {memberAgents.slice(0, 5).map((a: AgentProfile) => (
+                              <img key={a.id} src={a.avatar} alt={a.name} className="w-7 h-7 rounded-full border-2 border-slate-900 object-cover" title={a.name} />
+                            ))}
+                          </div>
+                          <span className="text-xs text-slate-500">{(group.memberIds || []).length} thành viên</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full py-20 text-center text-slate-600">
+                    <p className="italic">Chưa có nhóm nào. Agent sẽ tự tạo nhóm khi chạy mô phỏng.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }
+
+        {
           activeView === 'history' && (
             <div className="py-20 text-center text-slate-600 italic text-sm">
               Nhật ký đang được cấu trúc lại trong database.
@@ -415,6 +529,10 @@ function App() {
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/40">
                   <span className="text-sm text-slate-400">Số bài đăng</span>
                   <span className="text-xl font-black text-emerald-400">{totalPosts}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/40">
+                  <span className="text-sm text-slate-400">Số nhóm</span>
+                  <span className="text-xl font-black text-purple-400">{groups.length}</span>
                 </div>
               </div>
             </div>

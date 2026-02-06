@@ -68,5 +68,31 @@ export const syncService = {
         } catch (e) {
             return [];
         }
+    },
+
+    // Lấy tất cả groups
+    getAllGroups: async () => {
+        try {
+            const response = await fetch('/api/groups');
+            if (response.ok) {
+                return await response.json();
+            }
+            return [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    // Lưu group
+    saveGroup: async (group: any) => {
+        try {
+            await fetch('/api/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(group)
+            });
+        } catch (e) {
+            console.error('Save group error', e);
+        }
     }
 };

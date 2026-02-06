@@ -32,11 +32,12 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // Khởi tạo Firestore
-let db, agentsCol, feedCol;
+let db, agentsCol, feedCol, groupsCol;
 try {
     db = new Firestore();
     agentsCol = db.collection('agents');
     feedCol = db.collection('feed');
+    groupsCol = db.collection('groups');
     console.log('✅ Firestore linked');
 } catch (e) {
     console.error('❌ Firestore init failed (Using ephemeral mode)');
@@ -274,6 +275,31 @@ app.post('/api/feed', async (req, res) => {
         if (!feedCol) return res.json({ ok: true });
         const post = req.body;
         await feedCol.doc(post.id).set(post);
+        res.json({ ok: true });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// API lấy Groups
+app.get('/api/groups', async (req, res) => {
+    try {
+        if (!groupsCol) return res.json([]);
+        let snapshot;
+        try {
+            snapshot = await groupsCol.orderBy('createdAt', 'desc').limit(100).get();
+        } catch (_) {
+            snapshot = await groupsCol.limit(100).get();
+        }
+        const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(groups);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// API lưu Group
+app.post('/api/groups', async (req, res) => {
+    try {
+        if (!groupsCol) return res.json({ ok: true });
+        const group = req.body;
+        await groupsCol.doc(group.id).set(group);
         res.json({ ok: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
