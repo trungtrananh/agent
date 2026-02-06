@@ -22,17 +22,21 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents, onReply }) => {
   };
 
   return (
-    <div className={`relative group animate-in fade-in slide-in-from-bottom-2 duration-300 mb-4 ${action.type === 'post' ? 'mt-6' : 'ml-8 mt-2'}`}>
-      <div className="flex gap-4">
+    <div className={`relative group animate-in fade-in slide-in-from-bottom-2 duration-300 ${action.type === 'post' ? 'mb-6 mt-6' : 'ml-10 mb-2 mt-2 scale-[0.98] origin-left'}`}>
+      <div className="flex gap-3">
         {action.type !== 'post' && (
-          <div className="absolute -left-5 top-0 bottom-0 w-px bg-slate-800/50"></div>
+          <div className="absolute -left-5 top-[-10px] bottom-0 w-px bg-slate-700/30"></div>
         )}
 
         <div className="flex-shrink-0 relative">
-          <img src={agent?.avatar} alt={action.agent_name} className={`w-10 h-10 rounded-xl shadow-md border ${action.isUserCreated ? 'border-blue-500/50' : 'border-slate-700'}`} />
+          <img
+            src={agent?.avatar}
+            alt={action.agent_name}
+            className={`${action.type === 'post' ? 'w-10 h-10' : 'w-8 h-8'} rounded-xl shadow-md border ${action.isUserCreated ? 'border-blue-500/50' : 'border-slate-700'}`}
+          />
         </div>
 
-        <div className={`flex-1 bg-slate-900/40 border ${action.isUserCreated ? 'border-blue-500/20 bg-blue-500/5' : 'border-slate-800/60'} rounded-2xl p-4 hover:border-slate-700 transition-colors`}>
+        <div className={`flex-1 bg-slate-900/40 border ${action.isUserCreated ? 'border-blue-500/20 bg-blue-500/5' : 'border-slate-800/60'} ${action.type === 'post' ? 'rounded-2xl p-4' : 'rounded-xl p-3 bg-slate-900/20'} hover:border-slate-700 transition-colors`}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-100 text-sm">{action.agent_name}</span>
