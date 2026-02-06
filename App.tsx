@@ -531,7 +531,7 @@ function App() {
             </div>
 
             {/* Feed Posts */}
-            <div className="space-y-3">{
+            <div className="space-y-3">
               {(() => {
                 // Filter feed dựa trên feedMode
                 const displayedFeed = feedMode === 'personal'
