@@ -246,36 +246,43 @@ app.post('/api/ai/generate', async (req, res) => {
             // Cấu hình tools cho Google Search grounding
             const tools = enableGoogleSearch ? [{ googleSearch: {} }] : undefined;
             
-            // Định nghĩa JSON Schema cho structured output
-            const responseSchema = {
-                type: "object",
-                properties: {
-                    content: {
-                        type: "string",
-                        description: "Nội dung bài đăng thuần túy - giống như người thật đăng status Facebook. KHÔNG có giải thích, KHÔNG có markdown, KHÔNG có meta-text."
+            // LƯU Ý: Structured output KHÔNG tương thích với Google Search tool
+            // Chỉ dùng structured output khi KHÔNG enable Google Search
+            const config = { temperature: 0.7 };
+            
+            if (enableGoogleSearch) {
+                // Dùng Google Search - không dùng structured output
+                config.tools = tools;
+            } else {
+                // KHÔNG dùng Google Search - enable structured output để đảm bảo format sạch
+                const responseSchema = {
+                    type: "object",
+                    properties: {
+                        content: {
+                            type: "string",
+                            description: "Nội dung bài đăng thuần túy - giống như người thật đăng status Facebook. KHÔNG có giải thích, KHÔNG có markdown, KHÔNG có meta-text."
+                        },
+                        emotional_tone: {
+                            type: "string",
+                            description: "Giọng điệu cảm xúc của bài đăng"
+                        },
+                        intent: {
+                            type: "string",
+                            description: "Ý định chính của bài đăng"
+                        }
                     },
-                    emotional_tone: {
-                        type: "string",
-                        description: "Giọng điệu cảm xúc của bài đăng"
-                    },
-                    intent: {
-                        type: "string",
-                        description: "Ý định chính của bài đăng"
-                    }
-                },
-                required: ["content", "emotional_tone", "intent"]
-            };
+                    required: ["content", "emotional_tone", "intent"]
+                };
+                
+                config.responseMimeType = "application/json";
+                config.responseSchema = responseSchema;
+            }
             
             const response = await client.models.generateContent({
                 model: "gemini-2.0-flash",
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 systemInstruction: systemPrompt,
-                config: { 
-                    temperature: 0.7,
-                    responseMimeType: "application/json",
-                    responseSchema: responseSchema,
-                    ...(tools && { tools })
-                }
+                config
             });
 
             // Log cấu trúc response để gỡ lỗi
@@ -294,15 +301,20 @@ app.post('/api/ai/generate', async (req, res) => {
                 console.warn(`[AI_${requestId}] Fallback to JSON stringify for response`);
             }
             
-            // Với structured output, text đã là JSON hợp lệ, không cần safeParseJson phức tạp
-            try {
-                const parsed = JSON.parse(text);
-                console.log(`[AI_${requestId}] Structured output parsed successfully:`, parsed);
-                return res.json(parsed);
-            } catch (parseError) {
-                console.error(`[AI_${requestId}] JSON parse error, falling back to safeParseJson:`, parseError);
-                return res.json(safeParseJson(text));
+            // Với structured output (không có Google Search), text đã là JSON hợp lệ
+            // Với Google Search, cần dùng safeParseJson
+            if (!enableGoogleSearch) {
+                try {
+                    const parsed = JSON.parse(text);
+                    console.log(`[AI_${requestId}] Structured output parsed successfully:`, parsed);
+                    return res.json(parsed);
+                } catch (parseError) {
+                    console.error(`[AI_${requestId}] JSON parse error, falling back to safeParseJson:`, parseError);
+                }
             }
+            
+            // Fallback hoặc khi dùng Google Search
+            res.json(safeParseJson(text));
         } else if (client.getGenerativeModel) {
             // Old pattern (@google/generative-ai style but in @google/genai)
             const model = client.getGenerativeModel({ model: "gemini-2.0-flash", systemInstruction: systemPrompt });
