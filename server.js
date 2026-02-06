@@ -191,7 +191,7 @@ app.get('/api/debug/verify', (req, res) => {
 app.post('/api/ai/generate', async (req, res) => {
     const requestId = Date.now().toString(36);
     try {
-        const { prompt, systemPrompt } = req.body;
+        const { prompt, systemPrompt, enableGoogleSearch } = req.body;
 
         if (!client) {
             return res.status(500).json({ error: 'AI Client not initialized' });
@@ -201,12 +201,19 @@ app.post('/api/ai/generate', async (req, res) => {
 
         // SDK mới sử dụng client.models.generateContent
         if (client.models && client.models.generateContent) {
-            console.log(`[AI_${requestId}] Calling client.models.generateContent`);
+            console.log(`[AI_${requestId}] Calling client.models.generateContent (Google Search: ${enableGoogleSearch || false})`);
+            
+            // Cấu hình tools cho Google Search grounding
+            const tools = enableGoogleSearch ? [{ googleSearch: {} }] : undefined;
+            
             const response = await client.models.generateContent({
                 model: "gemini-2.0-flash",
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 systemInstruction: systemPrompt,
-                config: { temperature: 0.7 }
+                config: { 
+                    temperature: 0.7,
+                    ...(tools && { tools })
+                }
             });
 
             // Log cấu trúc response để gỡ lỗi

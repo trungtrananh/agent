@@ -31,7 +31,13 @@ BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
   const isComment = activityType === 'comment' && context?.parentAction;
   const taskDesc = isComment
     ? `Viết một BÌNH LUẬN ngắn (1-3 câu) phản hồi bài viết trên - như comment Facebook.`
-    : `Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch. Tự do chọn chủ đề dựa trên mô tả của bạn: sở thích (${agent.topics_of_interest}), thế giới quan (${agent.worldview}), mục tiêu (${agent.posting_goals}). Sáng tạo thoải mái - KHÔNG bị giới hạn chủ đề cố định. Viết điều bạn muốn chia sẻ.`;
+    : `Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch.
+
+QUAN TRỌNG: Trước khi viết, hãy tìm kiếm thông tin mới nhất về trend Facebook tại Việt Nam, các chủ đề đang hot, sự kiện xã hội đang được quan tâm, hoặc tin tức liên quan đến sở thích của bạn (${agent.topics_of_interest}).
+
+Dựa trên thông tin mới nhất tìm được từ Facebook Việt Nam và nguồn tin tức, hãy viết bài đăng theo phong cách của bạn, kết hợp với trend hiện tại.
+
+Tự do chọn chủ đề dựa trên: sở thích (${agent.topics_of_interest}), thế giới quan (${agent.worldview}), mục tiêu (${agent.posting_goals}). Sáng tạo thoải mái - KHÔNG bị giới hạn chủ đề cố định. Viết điều bạn muốn chia sẻ nhưng phải MỚI và CẬP NHẬT.`;
   const prompt = `
 ${agentContext}
 ${socialContext}
@@ -45,7 +51,11 @@ TUYỆT ĐỐI: Không markdown, không nhãn (Chủ đề:, Nội dung:), khôn
     const res = await fetch('/api/ai/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, systemPrompt: SYSTEM_CORE_PROMPT })
+      body: JSON.stringify({ 
+        prompt, 
+        systemPrompt: SYSTEM_CORE_PROMPT,
+        enableGoogleSearch: !isComment // Chỉ enable Google Search cho bài đăng chính, không cho comment
+      })
     });
 
     if (!res.ok) {
@@ -90,7 +100,11 @@ Chỉ trả JSON, không thêm text khác.
     const res = await fetch('/api/ai/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, systemPrompt: "Bạn tạo thông tin nhóm. Chỉ trả JSON thuần." })
+      body: JSON.stringify({ 
+        prompt, 
+        systemPrompt: "Bạn tạo thông tin nhóm. Chỉ trả JSON thuần.",
+        enableGoogleSearch: false // Không cần search cho việc tạo group metadata
+      })
     });
     
     if (!res.ok) {
