@@ -87,29 +87,46 @@ function safeParseJson(text) {
             }
         }
 
-        // Làm sạch nội dung (Bản nâng cấp siêu mạnh mẽ - Xử lý đa dòng)
+        // Làm sạch nội dung (Bản SIÊU KHẮC KHE - Xóa toàn bộ Markdown và cấu trúc)
         if (parsed.content) {
             parsed.content = parsed.content
-                // 1. Xóa các nội dung trong ngoặc đơn/vuông kể cả đa dòng (Stage directions)
+                // 1. Xóa markdown headers (##, ###, etc.)
+                .replace(/^#+\s*/gm, '')
+
+                // 2. Xóa bold/italic markdown (**, *, __)
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/\*([^*]+)\*/g, '$1')
+                .replace(/__([^_]+)__/g, '$1')
+                .replace(/_([^_]+)_/g, '$1')
+
+                // 3. Xóa blockquotes (>)
+                .replace(/^>\s*/gm, '')
+
+                // 4. Xóa bullet points (-, *, số.)
+                .replace(/^[-*]\s+/gm, '')
+                .replace(/^\d+\.\s+/gm, '')
+
+                // 5. Xóa các nội dung trong ngoặc đơn/vuông (Stage directions)
                 .replace(/\([\s\S]*?\)/g, '')
                 .replace(/\[[\s\S]*?\]/g, '')
 
-                // 2. Xóa các câu dắt/giới thiệu persona cụ thể
+                // 6. Xóa các câu dắt/giới thiệu persona
                 .replace(/^Với tư cách.*?:/gi, '')
-                .replace(/^\(Với tư cách.*?\)/gi, '')
+                .replace(/^Hành động.*?:/gi, '')
 
-                // 3. Xóa các câu dẫn phổ biến của AI
-                .replace(/^(Tuyệt vời|Chắc chắn rồi|Dưới đây là|Theo hồ sơ|Dựa theo|Dựa trên).*?(:|!|\.)/gi, '')
+                // 7. Xóa các nhãn phổ biến (Tiêu đề, Nội dung, Chủ đề, v.v.)
+                .replace(/^(Tiêu đề|Title|Tên bài đăng|Nội dung|Bài đăng|Content|Activity|Chủ đề|Topic|Hành động|Post):?\s*/gim, '')
 
-                // 4. Xóa các nhãn (Tiêu đề, Nội dung, Bài đăng, v.v.)
-                .replace(/^(\*\*|#|)?(Tiêu đề|Title|Tên bài đăng|Nội dung|Bài đăng|Content|Activity):?(\*\*|)?\s*/gi, '')
+                // 8. Xóa các câu dẫn phổ biến của AI
+                .replace(/^(Tuyệt vời|Chắc chắn rồi|Dưới đây là|Theo hồ sơ|Dựa theo|Dựa trên|Đây là).*?(:|!|\.)/gi, '')
 
-                // 5. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng
+                // 9. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng thừa
                 .replace(/^"|"$/g, '')
+                .replace(/\n{3,}/g, '\n\n') // Giảm nhiều dòng trắng liên tiếp
                 .trim();
 
-            // Nếu sau khi sạch mà vẫn bắt đầu bằng "Nội dung:", "Tiêu đề:", lọc lại lần nữa (đệ quy nhẹ)
-            if (parsed.content.match(/^(\*\*|)?(Tiêu đề|Nội dung|Bài đăng|Content|Title):/i)) {
+            // Nếu sau khi sạch mà vẫn bắt đầu bằng nhãn, lọc lại lần nữa
+            if (parsed.content.match(/^(Tiêu đề|Nội dung|Bài đăng|Content|Title|Chủ đề):/i)) {
                 parsed.content = parsed.content.replace(/^.*?:/i, '').trim();
             }
         }
