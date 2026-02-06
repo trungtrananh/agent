@@ -74,8 +74,39 @@ function safeParseJson(text) {
     console.log('--- RAW AI RESPONSE ---');
     console.log(text);
     console.log('-----------------------');
+    
+    // BƯớc 1: Loại bỏ các câu giải thích meta-text của LLM
+    let cleanedText = text;
+    
+    // Loại bỏ các câu giải thích đầu tiên (trước khi vào nội dung thực)
+    const metaPhrases = [
+        /Tuyệt vời!.*?nhé\./gs,
+        /Để bắt đầu.*?\./gs,
+        /Mình sẽ tìm kiếm.*?\./gs,
+        /Dựa trên.*?thấy:/gs,
+        /Dựa trên.*?nổi bật:/gs,
+        /Dựa trên.*?tìm được[,:]?/gs,
+        /Dựa trên.*?tìm kiếm được[,:]?/gs,
+        /Những gì.*?thấy[,:]?/gs,
+        /Theo những gì.*?[,:]?/gs,
+        /Các chủ đề nổi bật:?/gs
+    ];
+    
+    for (const pattern of metaPhrases) {
+        cleanedText = cleanedText.replace(pattern, '');
+    }
+    
+    // Loại bỏ markdown list (* hoặc -)
+    cleanedText = cleanedText.replace(/^\s*[\*\-]\s+/gm, '');
+    
+    // Loại bỏ các dòng chỉ có dấu * hoặc bullet
+    cleanedText = cleanedText.replace(/^[\*\-\u2022]+\s*$/gm, '');
+    
+    // Trim khoảng trắng thừa
+    cleanedText = cleanedText.trim();
+    
     try {
-        const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const cleaned = cleanedText.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleaned);
 
         if (!parsed.content) {
@@ -91,6 +122,15 @@ function safeParseJson(text) {
         // CHIẾN LƯỢC HẠT NHÂN: Trích xuất nội dung thực sự từ bên trong dấu ngoặc kép
         if (parsed.content) {
             let content = parsed.content;
+            
+            // Loại bỏ meta-text trong content
+            for (const pattern of metaPhrases) {
+                content = content.replace(pattern, '');
+            }
+            
+            // Loại bỏ markdown
+            content = content.replace(/^\s*[\*\-]\s+/gm, '');
+            content = content.replace(/^[\*\-\u2022]+\s*$/gm, '');
 
             // Nếu content có dạng "Tuyệt vời!... **Nội dung:**\n\n"..." -> Lấy phần trong ngoặc kép cuối cùng
             // Tìm đoạn văn bản dài nhất nằm trong dấu " hoặc "
@@ -206,12 +246,34 @@ app.post('/api/ai/generate', async (req, res) => {
             // Cấu hình tools cho Google Search grounding
             const tools = enableGoogleSearch ? [{ googleSearch: {} }] : undefined;
             
+            // Định nghĩa JSON Schema cho structured output
+            const responseSchema = {
+                type: "object",
+                properties: {
+                    content: {
+                        type: "string",
+                        description: "Nội dung bài đăng thuần túy - giống như người thật đăng status Facebook. KHÔNG có giải thích, KHÔNG có markdown, KHÔNG có meta-text."
+                    },
+                    emotional_tone: {
+                        type: "string",
+                        description: "Giọng điệu cảm xúc của bài đăng"
+                    },
+                    intent: {
+                        type: "string",
+                        description: "Ý định chính của bài đăng"
+                    }
+                },
+                required: ["content", "emotional_tone", "intent"]
+            };
+            
             const response = await client.models.generateContent({
                 model: "gemini-2.0-flash",
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 systemInstruction: systemPrompt,
                 config: { 
                     temperature: 0.7,
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema,
                     ...(tools && { tools })
                 }
             });
@@ -230,6 +292,16 @@ app.post('/api/ai/generate', async (req, res) => {
             } else {
                 text = JSON.stringify(response.value || response);
                 console.warn(`[AI_${requestId}] Fallback to JSON stringify for response`);
+            }
+            
+            // Với structured output, text đã là JSON hợp lệ, không cần safeParseJson phức tạp
+            try {
+                const parsed = JSON.parse(text);
+                console.log(`[AI_${requestId}] Structured output parsed successfully:`, parsed);
+                return res.json(parsed);
+            } catch (parseError) {
+                console.error(`[AI_${requestId}] JSON parse error, falling back to safeParseJson:`, parseError);
+                return res.json(safeParseJson(text));
             }
         } else if (client.getGenerativeModel) {
             // Old pattern (@google/generative-ai style but in @google/genai)

@@ -33,18 +33,26 @@ BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
     ? `Viết một BÌNH LUẬN ngắn (1-3 câu) phản hồi bài viết trên - như comment Facebook.`
     : `Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch.
 
-QUAN TRỌNG: Trước khi viết, hãy tìm kiếm thông tin mới nhất về trend Facebook tại Việt Nam, các chủ đề đang hot, sự kiện xã hội đang được quan tâm, hoặc tin tức liên quan đến sở thích của bạn (${agent.topics_of_interest}).
+QUAN TRỌNG: Hãy tìm kiếm thông tin mới nhất về trend Facebook tại Việt Nam, các chủ đề đang hot, sự kiện xã hội đang được quan tâm.
 
-Dựa trên thông tin mới nhất tìm được từ Facebook Việt Nam và nguồn tin tức, hãy viết bài đăng theo phong cách của bạn, kết hợp với trend hiện tại.
+Sau khi tìm kiếm xong, VIẾT NGAY NỘI DUNG BÀI ĐĂNG - KHÔNG giải thích quá trình tìm kiếm, KHÔNG nói "mình sẽ tìm kiếm", "dựa trên thông tin", "mình thấy".
 
-Tự do chọn chủ đề dựa trên: sở thích (${agent.topics_of_interest}), thế giới quan (${agent.worldview}), mục tiêu (${agent.posting_goals}). Sáng tạo thoải mái - KHÔNG bị giới hạn chủ đề cố định. Viết điều bạn muốn chia sẻ nhưng phải MỚI và CẬP NHẬT.`;
+CHỈ TRẢ VỀ NỘI DUNG BÀI ĐĂNG NGUỴN - như bạn đang đăng status thật trên Facebook.
+
+Tự do chọn chủ đề dựa trên: sở thích (${agent.topics_of_interest}), thế giới quan (${agent.worldview}), mục tiêu (${agent.posting_goals}). Kết hợp với trend mới nhất từ Facebook VN.`;
   const prompt = `
 ${agentContext}
 ${socialContext}
 
 NHIỆM VỤ: ${taskDesc}
 BẠN LÀ ${agent.name} - nói bằng giọng của chính bạn.
-TUYỆT ĐỐI: Không markdown, không nhãn (Chủ đề:, Nội dung:), không cấu trúc phân tích, không [Tên]: hay bullet list. Chỉ văn bản thuần túy.
+
+TUYỆT ĐỐI - ĐỌC KỸ:
+- KHÔNG viết: "Tuyệt vời!", "Mình sẽ tìm kiếm", "Dựa trên thông tin", "Những gì mình vừa tìm thấy"
+- KHÔNG giải thích quá trình suy nghĩ hay tìm kiếm
+- KHÔNG markdown, KHÔNG nhãn (Chủ đề:, Nội dung:), KHÔNG bullet list (*,-)
+- KHÔNG [Tên]: hay phân tích cấu trúc
+- CHỈ viết nội dung bài đăng thuần túy - GIỐNG NHƯ NGUỐI THẬT ĐĂNG FACEBOOK
 `;
 
   try {
