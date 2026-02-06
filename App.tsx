@@ -287,27 +287,63 @@ function App() {
     }
   }, [agents, groups, agentMatchesGroup]);
 
+  // Agent trong nhóm tự động thảo luận
+  const simulateGroupDiscussion = useCallback(async () => {
+    if (groups.length === 0 || agents.length === 0) return;
+    
+    // Chọn nhóm ngẫu nhiên có thành viên
+    const activeGroups = groups.filter(g => g.memberIds && g.memberIds.length > 0);
+    if (activeGroups.length === 0) return;
+    
+    const group = activeGroups[Math.floor(Math.random() * activeGroups.length)];
+    const roll = Math.random();
+    
+    if (roll < 0.6) {
+      // 60%: Member đăng bài mới vào nhóm
+      const member = group.memberIds[Math.floor(Math.random() * group.memberIds.length)];
+      const agent = agents.find(a => a.id === member);
+      if (agent) {
+        console.log(`[GROUP DISCUSSION] 📝 ${agent.name} đăng bài mới trong "${group.name}"`);
+        await simulateAction('post', member, undefined, group.id);
+      }
+    } else {
+      // 40%: Member comment vào bài trong nhóm
+      const groupPosts = feed.filter(p => p.groupId === group.id && !p.parentId);
+      if (groupPosts.length > 0) {
+        const post = groupPosts[Math.floor(Math.random() * groupPosts.length)];
+        // Chọn member khác với tác giả bài gốc
+        const otherMembers = group.memberIds.filter(id => id !== post.agent_id);
+        if (otherMembers.length > 0) {
+          const commenter = otherMembers[Math.floor(Math.random() * otherMembers.length)];
+          const agent = agents.find(a => a.id === commenter);
+          if (agent) {
+            console.log(`[GROUP DISCUSSION] 💬 ${agent.name} bình luận trong "${group.name}"`);
+            await simulateAction('comment', commenter, post, group.id);
+          }
+        }
+      }
+    }
+  }, [agents, groups, feed, simulateAction]);
+
   // Auto simulation
   const groupTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const groupPostTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const groupDiscussionTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   
   useEffect(() => {
     if (isSimulating) {
       // Post/comment action chỉ chạy khi không đang generate
       if (!isGenerating) {
         simulationTimer.current = setInterval(() => {
-          // 70% đăng vào feed chung, 30% đăng vào nhóm ngẫu nhiên
-          if (Math.random() > 0.3) {
+          // 50% đăng vào feed chung, 50% đăng vào nhóm ngẫu nhiên (tăng hoạt động nhóm)
+          if (Math.random() > 0.5 || groups.length === 0) {
             simulateAction();
           } else {
             // Đăng bài vào nhóm ngẫu nhiên
-            if (groups.length > 0) {
-              const randomGroup = groups[Math.floor(Math.random() * groups.length)];
-              const member = randomGroup.memberIds?.[Math.floor(Math.random() * randomGroup.memberIds.length)];
-              if (member) {
-                console.log(`[GROUP POST] Agent "${agents.find(a => a.id === member)?.name}" trong nhóm "${randomGroup.name}" đang đăng bài...`);
-                simulateAction('post', member, undefined, randomGroup.id);
-              }
+            const randomGroup = groups[Math.floor(Math.random() * groups.length)];
+            const member = randomGroup.memberIds?.[Math.floor(Math.random() * randomGroup.memberIds.length)];
+            if (member) {
+              console.log(`[GROUP POST] Agent "${agents.find(a => a.id === member)?.name}" trong nhóm "${randomGroup.name}" đang đăng bài...`);
+              simulateAction('post', member, undefined, randomGroup.id);
             } else {
               simulateAction();
             }
@@ -321,20 +357,34 @@ function App() {
         simulateGroupAction();
       }, 15000);
       
+      // Group discussion - Agent thảo luận trong nhóm (mỗi 12 giây)
+      groupDiscussionTimer.current = setInterval(() => {
+        console.log('[GROUP DISCUSSION] Timer tick - Agent đang thảo luận trong nhóm');
+        simulateGroupDiscussion();
+      }, 12000);
+      
       // Gọi ngay lần đầu sau 3 giây
       setTimeout(() => {
         console.log('[GROUP] First call - gọi simulateGroupAction lần đầu');
         simulateGroupAction();
       }, 3000);
+      
+      // Gọi group discussion sau 5 giây
+      setTimeout(() => {
+        console.log('[GROUP DISCUSSION] First call - Agent bắt đầu thảo luận');
+        simulateGroupDiscussion();
+      }, 5000);
     } else {
       if (simulationTimer.current) clearInterval(simulationTimer.current);
       if (groupTimer.current) clearInterval(groupTimer.current);
+      if (groupDiscussionTimer.current) clearInterval(groupDiscussionTimer.current);
     }
     return () => {
       if (simulationTimer.current) clearInterval(simulationTimer.current);
       if (groupTimer.current) clearInterval(groupTimer.current);
+      if (groupDiscussionTimer.current) clearInterval(groupDiscussionTimer.current);
     };
-  }, [isSimulating, isGenerating, simulateAction, simulateGroupAction, groups]);
+  }, [isSimulating, isGenerating, simulateAction, simulateGroupAction, simulateGroupDiscussion, groups]);
 
   // Reset selectedGroup khi chuyển view
   useEffect(() => {
@@ -649,6 +699,12 @@ function App() {
                         {selectedGroup.memberIds?.length || 0} thành viên • Tạo bởi {selectedGroup.creatorName}
                       </p>
                     </div>
+                    {isSimulating && (
+                      <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                        <span className="text-xs font-bold text-emerald-400">Đang thảo luận</span>
+                      </div>
+                    )}
                   </div>
                   <p className="text-sm text-slate-400 mb-3">{selectedGroup.description}</p>
                   <div className="flex flex-wrap gap-2">
@@ -687,13 +743,33 @@ function App() {
               {/* Feed của nhóm */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                    Thảo luận trong nhóm
-                  </h3>
-                  <span className="text-xs text-slate-500">
-                    {feed.filter(p => p.groupId === selectedGroup.id).length} bài đăng
-                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                      Thảo luận trong nhóm
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1">
+                      {feed.filter(p => p.groupId === selectedGroup.id).length} bài đăng • Tự động mỗi 12s
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      console.log('[GROUP DISCUSSION] Thủ công trigger thảo luận...');
+                      // Chọn member ngẫu nhiên để đăng bài
+                      if (selectedGroup.memberIds && selectedGroup.memberIds.length > 0) {
+                        const member = selectedGroup.memberIds[Math.floor(Math.random() * selectedGroup.memberIds.length)];
+                        const agent = agents.find(a => a.id === member);
+                        if (agent) {
+                          console.log(`[GROUP DISCUSSION] 📝 ${agent.name} đăng bài trong "${selectedGroup.name}"`);
+                          await simulateAction('post', member, undefined, selectedGroup.id);
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Test Thảo Luận
+                  </button>
                 </div>
                 
                 {(() => {
@@ -709,9 +785,13 @@ function App() {
                           <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         </div>
                         <p className="text-slate-400 text-sm mb-2">Chưa có thảo luận trong nhóm này</p>
-                        <p className="text-xs text-slate-600">
-                          Các Agent thành viên sẽ tự động đăng bài vào nhóm khi mô phỏng đang chạy
+                        <p className="text-xs text-slate-600 mb-3">
+                          Các Agent thành viên sẽ tự động đăng bài mỗi <strong className="text-slate-500">12 giây</strong>
                         </p>
+                        <div className="flex items-center justify-center gap-2 text-xs text-slate-700">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                          <span>Hoặc nhấn "Test Thảo Luận" để thử ngay</span>
+                        </div>
                       </div>
                     </div>
                   );
