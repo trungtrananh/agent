@@ -226,35 +226,60 @@ function App() {
 
   // Agent tạo Group hoặc Join Group (chạy độc lập, không chờ isGenerating)
   const simulateGroupAction = useCallback(async () => {
-    if (agents.length === 0) return;
+    if (agents.length === 0) {
+      console.log('[GROUP] Không có Agent để tạo nhóm');
+      return;
+    }
+    
     const roll = Math.random();
+    console.log(`[GROUP] Roll: ${roll.toFixed(2)}, Current groups: ${groups.length}`);
+    
     if (roll < 0.4 && groups.length < 20) {
       // 40%: Agent tạo group mới
       const agent = agents[Math.floor(Math.random() * agents.length)];
-      const info = await generateGroupFromAgent(agent);
-      if (info && info.name) {
-        const newGroup: Group = {
-          id: 'group_' + Math.random().toString(36).substr(2, 9),
-          name: info.name,
-          description: info.description || info.name,
-          createdBy: agent.id,
-          creatorName: agent.name,
-          topics: info.topics || [agent.topics_of_interest],
-          memberIds: [agent.id],
-          createdAt: Date.now()
-        };
-        await syncService.saveGroup(newGroup);
-        setGroups(prev => [newGroup, ...prev]);
+      console.log(`[GROUP] ${agent.name} đang tạo nhóm mới...`);
+      
+      try {
+        const info = await generateGroupFromAgent(agent);
+        console.log('[GROUP] Thông tin nhóm từ AI:', info);
+        
+        if (info && info.name) {
+          const newGroup: Group = {
+            id: 'group_' + Math.random().toString(36).substr(2, 9),
+            name: info.name,
+            description: info.description || info.name,
+            createdBy: agent.id,
+            creatorName: agent.name,
+            topics: info.topics || [agent.topics_of_interest],
+            memberIds: [agent.id],
+            createdAt: Date.now()
+          };
+          
+          console.log(`[GROUP] ✓ Đã tạo nhóm: "${newGroup.name}" bởi ${agent.name}`);
+          await syncService.saveGroup(newGroup);
+          setGroups(prev => [newGroup, ...prev]);
+        } else {
+          console.warn('[GROUP] ✗ AI không trả về thông tin nhóm hợp lệ');
+        }
+      } catch (error) {
+        console.error('[GROUP] ✗ Lỗi khi tạo nhóm:', error);
       }
     } else if (roll >= 0.4 && groups.length > 0) {
       // 60%: Agent join group phù hợp
       const agent = agents[Math.floor(Math.random() * agents.length)];
       const joinableGroups = groups.filter(g => agentMatchesGroup(agent, g) && !g.memberIds?.includes(agent.id));
+      
+      console.log(`[GROUP] ${agent.name} đang tìm nhóm để tham gia... (${joinableGroups.length} nhóm phù hợp)`);
+      
       if (joinableGroups.length > 0) {
         const group = joinableGroups[Math.floor(Math.random() * joinableGroups.length)];
         const updated = { ...group, memberIds: [...(group.memberIds || []), agent.id] };
+        
+        console.log(`[GROUP] ✓ ${agent.name} đã tham gia nhóm "${group.name}"`);
         await syncService.saveGroup(updated);
         setGroups(prev => prev.map(g => g.id === group.id ? updated : g));
+      } else {
+        console.log(`[GROUP] ${agent.name} không tìm thấy nhóm phù hợp để tham gia`);
       }
     }
   }, [agents, groups, agentMatchesGroup]);
@@ -262,11 +287,25 @@ function App() {
   // Auto simulation
   const groupTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    if (isSimulating && !isGenerating) {
-      simulationTimer.current = setInterval(() => {
-        simulateAction();
-      }, 20000);
-      groupTimer.current = setInterval(simulateGroupAction, 45000);
+    if (isSimulating) {
+      // Post/comment action chỉ chạy khi không đang generate
+      if (!isGenerating) {
+        simulationTimer.current = setInterval(() => {
+          simulateAction();
+        }, 20000);
+      }
+      
+      // Group action chạy độc lập, không bị block bởi isGenerating
+      groupTimer.current = setInterval(() => {
+        console.log('[GROUP] Timer tick - gọi simulateGroupAction');
+        simulateGroupAction();
+      }, 15000);
+      
+      // Gọi ngay lần đầu sau 3 giây
+      setTimeout(() => {
+        console.log('[GROUP] First call - gọi simulateGroupAction lần đầu');
+        simulateGroupAction();
+      }, 3000);
     } else {
       if (simulationTimer.current) clearInterval(simulationTimer.current);
       if (groupTimer.current) clearInterval(groupTimer.current);
@@ -484,9 +523,21 @@ function App() {
         {
           activeView === 'groups' && (
             <div className="space-y-8 pb-20">
-              <div>
-                <h2 className="text-2xl font-black text-white mb-2">Các Nhóm</h2>
-                <p className="text-sm text-slate-500">Agent tự tạo và tham gia nhóm theo sở thích, tính cách</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-white mb-2">Các Nhóm</h2>
+                  <p className="text-sm text-slate-500">Agent tự tạo và tham gia nhóm theo sở thích, tính cách</p>
+                </div>
+                <button
+                  onClick={() => {
+                    console.log('[GROUP] Thủ công trigger tạo nhóm...');
+                    simulateGroupAction();
+                  }}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                  Test Tạo Nhóm
+                </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {groups.length > 0 ? (
@@ -521,8 +572,20 @@ function App() {
                     );
                   })
                 ) : (
-                  <div className="col-span-full py-20 text-center text-slate-600">
-                    <p className="italic">Chưa có nhóm nào. Agent sẽ tự tạo nhóm khi chạy mô phỏng.</p>
+                  <div className="col-span-full py-20 text-center">
+                    <div className="inline-block p-8 bg-slate-900/50 border border-slate-800 rounded-2xl">
+                      <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                      </div>
+                      <p className="text-slate-400 mb-3">Chưa có nhóm nào được tạo</p>
+                      <p className="text-xs text-slate-600 mb-4">
+                        Agent sẽ tự động tạo nhóm mỗi 15 giây khi mô phỏng đang chạy.<br />
+                        Bạn cũng có thể nhấn nút "Test Tạo Nhóm" ở trên để thử ngay.
+                      </p>
+                      <div className="text-xs text-slate-700 font-mono">
+                        🔄 Mở Console (F12) để xem log chi tiết về quá trình tạo nhóm
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

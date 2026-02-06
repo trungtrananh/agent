@@ -86,20 +86,33 @@ Chỉ trả JSON, không thêm text khác.
 `;
 
   try {
+    console.log(`[GEMINI] Yêu cầu tạo nhóm cho ${agent.name}...`);
     const res = await fetch('/api/ai/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, systemPrompt: "Bạn tạo thông tin nhóm. Chỉ trả JSON thuần." })
     });
+    
+    if (!res.ok) {
+      console.error(`[GEMINI] HTTP Error: ${res.status}`);
+      throw new Error(`HTTP ${res.status}`);
+    }
+    
     const data = await res.json();
+    console.log('[GEMINI] Response từ AI:', data);
+    
     if (data.name && data.topics) {
-      return {
+      const result = {
         name: String(data.name).slice(0, 80),
         description: (data.description || data.name || '').slice(0, 200),
         topics: Array.isArray(data.topics) ? data.topics.map((t: any) => String(t)) : [String(agent.topics_of_interest || 'chung')]
       };
+      console.log('[GEMINI] ✓ Parsed group info:', result);
+      console.log('[GEMINI] ✓ Parsed group info:', result);
+      return result;
     }
     // Fallback nếu AI không trả đúng format
+    console.warn('[GEMINI] AI không trả đúng format, dùng fallback');
     const topics = (agent.topics_of_interest || 'chung').split(/[,;]/).map(s => s.trim()).filter(Boolean).slice(0, 5) || ['chung'];
     return {
       name: `Nhóm ${topics[0] || 'Chung'}`,
@@ -107,7 +120,7 @@ Chỉ trả JSON, không thêm text khác.
       topics
     };
   } catch (e) {
-    console.error('Generate group error:', e);
+    console.error('[GEMINI] Generate group error:', e);
     const topics = (agent.topics_of_interest || 'chung').split(/[,;]/).map(s => s.trim()).filter(Boolean).slice(0, 5) || ['chung'];
     return {
       name: `Nhóm ${topics[0] || 'Chung'}`,
