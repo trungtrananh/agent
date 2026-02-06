@@ -87,48 +87,69 @@ function safeParseJson(text) {
             }
         }
 
-        // Làm sạch nội dung (Bản SIÊU KHẮC KHE - Xóa toàn bộ Markdown và cấu trúc)
+        // CHIẾN LƯỢC HẠT NHÂN: Trích xuất nội dung thực sự từ bên trong dấu ngoặc kép
         if (parsed.content) {
-            parsed.content = parsed.content
-                // 1. Xóa markdown headers (##, ###, etc.)
+            let content = parsed.content;
+
+            // Nếu content có dạng "Tuyệt vời!... **Nội dung:**\n\n"..." -> Lấy phần trong ngoặc kép cuối cùng
+            // Tìm đoạn văn bản dài nhất nằm trong dấu " hoặc "
+            const vietnameseQuotes = content.match(/"([^"]+)"/g) || content.match(/"([^"]+)"/g);
+            if (vietnameseQuotes && vietnameseQuotes.length > 0) {
+                // Lấy quote dài nhất (thường là nội dung thật)
+                let longestQuote = vietnameseQuotes.reduce((a, b) => a.length > b.length ? a : b);
+                // Xóa dấu ngoặc kép bọc ngoài
+                longestQuote = longestQuote.replace(/^[""]|[""]$/g, '').trim();
+                if (longestQuote.length > 30) { // Chỉ sử dụng nếu đủ dài
+                    content = longestQuote;
+                }
+            }
+
+            // Áp dụng bộ lọc sạch sâu
+            content = content
+                // 1. Xóa toàn bộ phần đầu cho đến Nội dung:
+                .replace(/^[\s\S]*?Nội dung:\s*/i, '')
+
+                // 2. Xóa markdown headers (##, ###, etc.)
                 .replace(/^#+\s*/gm, '')
 
-                // 2. Xóa bold/italic markdown (**, *, __)
+                // 3. Xóa bold/italic markdown (**, *, __)
                 .replace(/\*\*([^*]+)\*\*/g, '$1')
                 .replace(/\*([^*]+)\*/g, '$1')
                 .replace(/__([^_]+)__/g, '$1')
                 .replace(/_([^_]+)_/g, '$1')
 
-                // 3. Xóa blockquotes (>)
+                // 4. Xóa blockquotes (>)
                 .replace(/^>\s*/gm, '')
 
-                // 4. Xóa bullet points (-, *, số.)
+                // 5. Xóa bullet points (-, *, số.)
                 .replace(/^[-*]\s+/gm, '')
                 .replace(/^\d+\.\s+/gm, '')
 
-                // 5. Xóa các nội dung trong ngoặc đơn/vuông (Stage directions)
+                // 6. Xóa các nội dung trong ngoặc đơn/vuông (Stage directions)
                 .replace(/\([\s\S]*?\)/g, '')
                 .replace(/\[[\s\S]*?\]/g, '')
 
-                // 6. Xóa các câu dắt/giới thiệu persona
+                // 7. Xóa các câu dắt/giới thiệu
                 .replace(/^Với tư cách.*?:/gi, '')
                 .replace(/^Hành động.*?:/gi, '')
+                .replace(/^Tuyệt vời!?.*$/gim, '')
+                .replace(/^Dựa trên hồ sơ.*$/gim, '')
+                .replace(/^Đây là.*bài đăng.*$/gim, '')
 
-                // 7. Xóa các nhãn phổ biến (Tiêu đề, Nội dung, Chủ đề, v.v.)
+                // 8. Xóa các nhãn
                 .replace(/^(Tiêu đề|Title|Tên bài đăng|Nội dung|Bài đăng|Content|Activity|Chủ đề|Topic|Hành động|Post):?\s*/gim, '')
 
-                // 8. Xóa các câu dẫn phổ biến của AI
-                .replace(/^(Tuyệt vời|Chắc chắn rồi|Dưới đây là|Theo hồ sơ|Dựa theo|Dựa trên|Đây là).*?(:|!|\.)/gi, '')
-
                 // 9. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng thừa
-                .replace(/^"|"$/g, '')
-                .replace(/\n{3,}/g, '\n\n') // Giảm nhiều dòng trắng liên tiếp
+                .replace(/^[""]|[""]$/g, '')
+                .replace(/\n{3,}/g, '\n\n')
                 .trim();
 
-            // Nếu sau khi sạch mà vẫn bắt đầu bằng nhãn, lọc lại lần nữa
-            if (parsed.content.match(/^(Tiêu đề|Nội dung|Bài đăng|Content|Title|Chủ đề):/i)) {
-                parsed.content = parsed.content.replace(/^.*?:/i, '').trim();
+            // Lọc đệ quy nếu vẫn còn nhãn
+            if (content.match(/^(Tiêu đề|Nội dung|Bài đăng|Content|Title|Chủ đề):/i)) {
+                content = content.replace(/^.*?:/i, '').trim();
             }
+
+            parsed.content = content;
         }
 
         return parsed;
