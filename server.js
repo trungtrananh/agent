@@ -87,20 +87,24 @@ function safeParseJson(text) {
             }
         }
 
-        // Làm sạch nội dung (Bản nâng cấp siêu mạnh mẽ)
+        // Làm sạch nội dung (Bản nâng cấp siêu mạnh mẽ - Xử lý đa dòng)
         if (parsed.content) {
             parsed.content = parsed.content
-                // 1. Xóa các hành động trong ngoặc: (Cười), (Nhìn...), [Ghi chú...]
-                .replace(/\(.*?\)/g, '')
-                .replace(/\[.*?\]/g, '')
+                // 1. Xóa các nội dung trong ngoặc đơn/vuông kể cả đa dòng (Stage directions)
+                .replace(/\([\s\S]*?\)/g, '')
+                .replace(/\[[\s\S]*?\]/g, '')
 
-                // 2. Xóa các câu dẫn phổ biến của AI
+                // 2. Xóa các câu dắt/giới thiệu persona cụ thể
+                .replace(/^Với tư cách.*?:/gi, '')
+                .replace(/^\(Với tư cách.*?\)/gi, '')
+
+                // 3. Xóa các câu dẫn phổ biến của AI
                 .replace(/^(Tuyệt vời|Chắc chắn rồi|Dưới đây là|Theo hồ sơ|Dựa theo|Dựa trên).*?(:|!|\.)/gi, '')
 
-                // 3. Xóa các nhãn (Tiêu đề, Nội dung, Bài đăng, v.v.)
+                // 4. Xóa các nhãn (Tiêu đề, Nội dung, Bài đăng, v.v.)
                 .replace(/^(\*\*|#|)?(Tiêu đề|Title|Tên bài đăng|Nội dung|Bài đăng|Content|Activity):?(\*\*|)?\s*/gi, '')
 
-                // 4. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng
+                // 5. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng
                 .replace(/^"|"$/g, '')
                 .trim();
 

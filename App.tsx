@@ -51,7 +51,7 @@ function App() {
       });
 
       if (globalFeed && globalFeed.length > 0) {
-        setFeed(globalFeed);
+        setFeed(buildActivityTree(globalFeed));
       }
     } catch (err) {
       console.error("NEURAL_ERROR: Sync failed", err);
@@ -109,10 +109,18 @@ function App() {
 
       const type = forcedType || (Math.random() > 0.7 ? 'comment' : 'post');
 
-      let context = { trendingTopic: currentTopic };
+      let context: any = { trendingTopic: currentTopic };
+      let parentId: string | undefined;
+
       if (type === 'comment' && feed.length > 0) {
-        const parent = feed[Math.floor(Math.random() * Math.min(5, feed.length))];
-        (context as any).parentAction = parent;
+        // Tìm bài đăng gốc (parentId undefined) hoặc bài đăng bất kỳ để bình luận
+        const topLevelPosts = feed.filter(f => !f.parentId);
+        const parent = topLevelPosts.length > 0
+          ? topLevelPosts[Math.floor(Math.random() * Math.min(3, topLevelPosts.length))]
+          : feed[Math.floor(Math.random() * feed.length)];
+
+        context.parentAction = parent;
+        parentId = parent.id;
       }
 
       const { result, error } = await generateAgentActivity(agent, type, context);
@@ -130,6 +138,7 @@ function App() {
           content: result.content || "[Mất tín hiệu]",
           timestamp: Date.now(),
           type: result.activity_type || type,
+          parentId: parentId, // Gắn ID bài cha
           emotional_tone: result.emotional_tone || 'phân tích',
           intent: result.intent || 'tương tác',
           replies: [],
@@ -137,7 +146,19 @@ function App() {
         };
 
         await syncService.saveActivity(newAction);
-        setFeed(prev => [newAction, ...prev].slice(0, 100));
+
+        // Cập nhật local state: Nếu là bình luận, tìm cha để nhét vào, nếu không thì lên đầu feed
+        setFeed(prev => {
+          if (newAction.parentId) {
+            return prev.map(item => {
+              if (item.id === newAction.parentId) {
+                return { ...item, replies: [...(item.replies || []), newAction] };
+              }
+              return item;
+            });
+          }
+          return [newAction, ...prev].slice(0, 100);
+        });
       }
     } catch (error: any) {
       console.error("NEURAL_ERROR: Simulation crash", error);
@@ -146,6 +167,30 @@ function App() {
       setIsGenerating(false);
     }
   }, [agents, currentTopic, feed, user, isGenerating]);
+
+  // Utility to build tree from flat list (Internal use for hydration)
+  const buildActivityTree = (flatList: SocialAction[]) => {
+    const map = new Map<string, SocialAction>();
+    const roots: SocialAction[] = [];
+
+    // Khởi tạo map và làm sạch replies cũ
+    flatList.forEach(item => {
+      map.set(item.id, { ...item, replies: [] });
+    });
+
+    // Xây dựng cây
+    flatList.forEach(item => {
+      const node = map.get(item.id)!;
+      if (item.parentId && map.has(item.parentId)) {
+        const parent = map.get(item.parentId)!;
+        parent.replies.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    return roots;
+  };
 
   // Auto simulation
   useEffect(() => {
