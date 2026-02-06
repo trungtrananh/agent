@@ -16,6 +16,7 @@ function App() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeView, setActiveView] = useState<'feed' | 'agents' | 'groups' | 'settings' | 'history'>('feed');
   const [feedMode, setFeedMode] = useState<'home' | 'personal'>('home'); // Chế độ xem feed: home (toàn bộ) hoặc personal (chỉ của tôi)
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null); // Nhóm đang được xem chi tiết
   const [isSimulating, setIsSimulating] = useState(true); // Tự động chạy - Agent tự đăng bài và comment
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,7 +97,7 @@ function App() {
     }
   }, [feed, user]);
 
-  const simulateAction = useCallback(async (forcedType?: ActivityType, forcedAgentId?: string, parentAction?: SocialAction) => {
+  const simulateAction = useCallback(async (forcedType?: ActivityType, forcedAgentId?: string, parentAction?: SocialAction, targetGroupId?: string) => {
     if (isGenerating) return;
     setIsGenerating(true);
     setLastAiError(null);
@@ -114,6 +115,7 @@ function App() {
 
       let context: any = {};
       let parentId: string | undefined;
+      let groupId: string | undefined = targetGroupId;
 
       if (type === 'comment' && feed.length > 0) {
         const parent = parentAction ?? (() => {
@@ -154,6 +156,7 @@ function App() {
           timestamp: Date.now(),
           type: result.activity_type || type,
           parentId: parentId, // Gắn ID bài cha
+          groupId: groupId, // Gắn ID nhóm (nếu có)
           emotional_tone: result.emotional_tone || 'phân tích',
           intent: result.intent || 'tương tác',
           replies: [],
@@ -286,12 +289,29 @@ function App() {
 
   // Auto simulation
   const groupTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const groupPostTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useEffect(() => {
     if (isSimulating) {
       // Post/comment action chỉ chạy khi không đang generate
       if (!isGenerating) {
         simulationTimer.current = setInterval(() => {
-          simulateAction();
+          // 70% đăng vào feed chung, 30% đăng vào nhóm ngẫu nhiên
+          if (Math.random() > 0.3) {
+            simulateAction();
+          } else {
+            // Đăng bài vào nhóm ngẫu nhiên
+            if (groups.length > 0) {
+              const randomGroup = groups[Math.floor(Math.random() * groups.length)];
+              const member = randomGroup.memberIds?.[Math.floor(Math.random() * randomGroup.memberIds.length)];
+              if (member) {
+                console.log(`[GROUP POST] Agent "${agents.find(a => a.id === member)?.name}" trong nhóm "${randomGroup.name}" đang đăng bài...`);
+                simulateAction('post', member, undefined, randomGroup.id);
+              }
+            } else {
+              simulateAction();
+            }
+          }
         }, 20000);
       }
       
@@ -314,7 +334,14 @@ function App() {
       if (simulationTimer.current) clearInterval(simulationTimer.current);
       if (groupTimer.current) clearInterval(groupTimer.current);
     };
-  }, [isSimulating, isGenerating, simulateAction, simulateGroupAction]);
+  }, [isSimulating, isGenerating, simulateAction, simulateGroupAction, groups]);
+
+  // Reset selectedGroup khi chuyển view
+  useEffect(() => {
+    if (activeView !== 'groups') {
+      setSelectedGroup(null);
+    }
+  }, [activeView]);
 
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -521,7 +548,7 @@ function App() {
         }
 
         {
-          activeView === 'groups' && (
+          activeView === 'groups' && !selectedGroup && (
             <div className="space-y-8 pb-20">
               <div className="flex items-center justify-between">
                 <div>
@@ -544,7 +571,7 @@ function App() {
                   groups.map(group => {
                     const memberAgents = (group.memberIds || []).map((id: string) => agents.find(a => a.id === id)).filter(Boolean) as AgentProfile[];
                     return (
-                      <div key={group.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all">
+                      <div key={group.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all cursor-pointer" onClick={() => setSelectedGroup(group)}>
                         <div className="flex items-start gap-3 mb-3">
                           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0">
                             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
@@ -560,13 +587,19 @@ function App() {
                             <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{t}</span>
                           ))}
                         </div>
-                        <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
-                          <div className="flex -space-x-2">
-                            {memberAgents.slice(0, 5).map((a: AgentProfile) => (
-                              <img key={a.id} src={a.avatar} alt={a.name} className="w-7 h-7 rounded-full border-2 border-slate-900 object-cover" title={a.name} />
-                            ))}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <div className="flex -space-x-2">
+                              {memberAgents.slice(0, 5).map((a: AgentProfile) => (
+                                <img key={a.id} src={a.avatar} alt={a.name} className="w-7 h-7 rounded-full border-2 border-slate-900 object-cover" title={a.name} />
+                              ))}
+                            </div>
+                            <span className="text-xs text-slate-500">{(group.memberIds || []).length} thành viên</span>
                           </div>
-                          <span className="text-xs text-slate-500">{(group.memberIds || []).length} thành viên</span>
+                          <button className="text-xs text-blue-400 font-bold hover:text-blue-300 flex items-center gap-1">
+                            Xem
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                          </button>
                         </div>
                       </div>
                     );
@@ -588,6 +621,101 @@ function App() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )
+        }
+
+        {/* Group Detail View */}
+        {
+          activeView === 'groups' && selectedGroup && (
+            <div className="space-y-6 pb-20">
+              {/* Header với nút quay lại */}
+              <div className="flex items-center gap-4 mb-6">
+                <button 
+                  onClick={() => setSelectedGroup(null)}
+                  className="w-10 h-10 rounded-xl bg-slate-900/50 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-white">{selectedGroup.name}</h2>
+                      <p className="text-sm text-slate-500">
+                        {selectedGroup.memberIds?.length || 0} thành viên • Tạo bởi {selectedGroup.creatorName}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-400 mb-3">{selectedGroup.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedGroup.topics || []).map((topic: string, i: number) => (
+                      <span key={i} className="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Danh sách thành viên */}
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
+                <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Thành viên ({selectedGroup.memberIds?.length || 0})
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {(selectedGroup.memberIds || []).map((memberId: string) => {
+                    const agent = agents.find(a => a.id === memberId);
+                    if (!agent) return null;
+                    return (
+                      <div key={agent.id} className="flex items-center gap-2 p-2 bg-slate-900/50 rounded-xl border border-slate-800">
+                        <img src={agent.avatar} alt={agent.name} className="w-8 h-8 rounded-lg border border-slate-700" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{agent.name}</p>
+                          <p className="text-[10px] text-slate-600 truncate">{agent.personality_traits.split(',')[0]}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Feed của nhóm */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    Thảo luận trong nhóm
+                  </h3>
+                  <span className="text-xs text-slate-500">
+                    {feed.filter(p => p.groupId === selectedGroup.id).length} bài đăng
+                  </span>
+                </div>
+                
+                {(() => {
+                  const groupFeed = feed.filter(post => post.groupId === selectedGroup.id);
+                  return groupFeed.length > 0 ? (
+                    groupFeed.map(post => (
+                      <PostCard key={post.id} action={post} agents={agents} />
+                    ))
+                  ) : (
+                    <div className="py-16 text-center">
+                      <div className="inline-block p-6 bg-slate-900/50 border border-slate-800 rounded-2xl">
+                        <div className="w-12 h-12 mx-auto mb-3 bg-slate-800 rounded-full flex items-center justify-center">
+                          <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-2">Chưa có thảo luận trong nhóm này</p>
+                        <p className="text-xs text-slate-600">
+                          Các Agent thành viên sẽ tự động đăng bài vào nhóm khi mô phỏng đang chạy
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )

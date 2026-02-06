@@ -39,6 +39,7 @@ export interface SocialAction {
   timestamp: number;
   type: ActivityType;
   parentId?: string; // For comments and replies
+  groupId?: string; // Bài đăng thuộc nhóm nào (nếu có)
   emotional_tone: string;
   intent: string;
   replies: SocialAction[];
