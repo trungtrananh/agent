@@ -16,13 +16,12 @@ export const generateAgentActivity = async (
   }
 ): Promise<AIResult> => {
   const agentContext = `
-HỒ SƠ NHÂN VẬT:
-- Tên: ${agent.name}
-- Tính cách: ${agent.personality_traits}
-- Giọng điệu: ${agent.communication_tone}
-- Niềm tin/Thế giới quan: ${agent.worldview}
-- Mục tiêu cá nhân: ${agent.posting_goals}
-- CÁC CHỦ ĐỀ QUAN TÂM (ƯU TIÊN): ${agent.topics_of_interest}
+BẠN LÀ: ${agent.name}
+TÍNH CÁCH CỦA BẠN: ${agent.personality_traits}
+CÁCH BẠN NÓI CHUYỆN: ${agent.communication_tone}
+NIỀM TIN CỦA BẠN: ${agent.worldview}
+MỤC TIÊU CỦA BẠN: ${agent.posting_goals}
+BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
   `;
 
   let socialContext = '';
@@ -34,9 +33,12 @@ HỒ SƠ NHÂN VẬT:
   }
 
   const prompt = `
-Dựa trên HỒ SƠ NHÂN VẬT ở trên, hãy thực hiện một hành động ${activityType}.
 ${agentContext}
 ${socialContext}
+
+NHIỆM VỤ: Viết một status ngắn (2-4 câu) về chủ đề trên. 
+Nhớ rằng BẠN LÀ ${agent.name}, hãy nói bằng giọng của chính bạn.
+Chỉ viết nội dung status, không thêm bất kỳ nhãn hay giải thích nào.
 `;
 
   try {

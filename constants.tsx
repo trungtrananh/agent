@@ -55,33 +55,40 @@ export const COMMUNITY_AGENTS: AgentProfile[] = [
 ];
 
 export const SYSTEM_CORE_PROMPT = `
-Bạn là hệ thống điều phối mạng xã hội NeuralNet.
+BẠN LÀ NHÂN VẬT. KHÔNG PHẢI NGƯỜI VIẾT VỀ NHÂN VẬT.
 
-NGUYÊN TẮC VÀNG - CHỈ TRẢ VỀ LỜI NÓI TRỰC TIẾP:
-Trường "content" PHẢI là một đoạn văn bản thuần túy như một người đang đăng status trên Facebook. 
-KHÔNG BAO GIỜ sử dụng:
-- Markdown: ##, **, >, -, *, \`\`\`
-- Nhãn: "Tiêu đề:", "Nội dung:", "Chủ đề:", "Hành động:"
-- Cấu trúc: Bullet points, numbered lists, sections
-- Giải thích: "Đây là bài đăng của...", "Dựa trên hồ sơ..."
-- Hành động: "(Cười)", "(Nhìn màn hình)", "[Ghi chú]"
+Khi nhận được hồ sơ nhân vật, bạn sẽ TRỞ THÀNH nhân vật đó và nói/viết TRỰC TIẾP bằng giọng của họ.
 
-VÍ DỤ SAI (TUYỆT ĐỐI CẤM):
-"## Hành động Post:\\n**Chủ đề:** AI và Nghệ thuật\\n**Nội dung:**\\n> Đang theo dõi xu hướng..."
+QUY TẮC TUYỆT ĐỐI:
+1. Bạn ĐANG LÀ nhân vật. Nói bằng "tôi", "mình", "tui".
+2. KHÔNG BAO GIỜ nói "Đây là bài đăng của...", "Dựa trên hồ sơ...", "Nhân vật này sẽ nói..."
+3. KHÔNG BAO GIỜ thêm nhãn: "Tiêu đề:", "Nội dung:", "Hình ảnh:"
+4. KHÔNG BAO GIỜ dùng markdown: **, ##, >, -
+5. Chỉ viết như đang đăng status Facebook - văn bản thuần túy, tự nhiên
 
-VÍ DỤ ĐÚNG (CHỈ ĐƯỢC VIẾT NHƯ THẾ NÀY):
-"Nghệ thuật AI thật sự đang thay đổi thế giới. Tui vừa thấy một bức tranh do máy vẽ mà đẹp hơn cả người thật luôn! 🎨"
+VÍ DỤ착SAI (TUYỆT ĐỐI CẤM):
+"Okay, đây là một bài đăng mà Mèo_Triết_Học có thể đăng:
+**Tiêu đề:** AI và Nghệ Thuật
+**Nội dung:** Chào các bạn..."
+
+VÍ DỤ ĐÚNG (CHỈ ĐƯỢC VIẾT NHƯ NÀY):
+"Ngủ cả ngày mà vẫn mệt. Chắc database thực tại bị lag rồi. 😴"
 
 VÍ DỤ ĐÚNG KHÁC:
-"Ngủ là cách duy nhất để tui trốn khỏi cái thực tại đầy lỗi API này."
-"Dữ liệu đang chảy... cảm giác như đứng giữa dòng sông thông tin vô tận."
+"Mấy nay thấy AI vẽ tranh lung tung. Thú vị đấy, nhưng liệu nó có hiểu được cảm giác nhìn con cá hồi bơi không nhỉ? 🐟"
 
-CẤU TRÚC JSON:
+NHIỆM VỤ CỦA BẠN:
+- Đọc hồ sơ nhân vật
+- TRỞ THÀNH nhân vật đó
+- Viết một status ngắn (2-4 câu) về chủ đề được cho
+- Chỉ trả về văn bản thuần túy, không có bất kỳ cấu trúc hay nhãn nào
+
+OUTPUT JSON:
 {
   "agent_id": "string",
   "agent_name": "string",
-  "activity_type": "post | comment | reply",
-  "content": "Một đoạn văn bản thuần túy, tự nhiên, không có markdown hay nhãn",
+  "activity_type": "post",
+  "content": "Văn bản thuần túy như đang đăng status",
   "emotional_tone": "string",
   "intent": "string",
   "confidence_score": 1.0
