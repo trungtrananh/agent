@@ -450,7 +450,7 @@ function App() {
       />
 
       {/* Main Content - Center Feed (Facebook News Feed style) */}
-      <main className="flex-1 min-w-0 max-w-[680px] mx-auto py-4">{
+      <main className="flex-1 min-w-0 max-w-[680px] mx-auto py-4">
         {activeView === 'feed' && (
           <div className="space-y-4">
             {/* Stats bar - Mobile/Tablet (hidden on xl when right sidebar shows) */}
