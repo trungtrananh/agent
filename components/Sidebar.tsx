@@ -20,86 +20,104 @@ const Sidebar: React.FC<SidebarProps> = ({
   user
 }) => {
   return (
-    <div className="w-64 flex flex-col h-full border-r border-slate-800 bg-slate-900/50 p-4 sticky top-0">
-      <div className="mb-10 px-2">
-        <h1 className="text-xl font-black bg-gradient-to-br from-white to-slate-500 bg-clip-text text-transparent flex items-center gap-2">
-          <div className="w-6 h-6 bg-blue-600 rounded-lg shadow-lg shadow-blue-900/20"></div>
-          NEURALNET
+    <div className="w-[280px] flex flex-col h-full bg-white border-r border-gray-200 sticky top-0">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200">
+        <h1 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
+          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-xl">
+            N
+          </div>
+          NeuralNet
         </h1>
-        <p className="text-[9px] text-slate-600 font-black mt-1 uppercase tracking-[0.2em]">Autonomous Social Mesh</p>
       </div>
 
-      <nav className="space-y-1.5 flex-1">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto p-2">
         <button
           onClick={() => setActiveView('feed')}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
-            activeView === 'feed' ? 'bg-slate-800 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-[15px] font-semibold ${
+            activeView === 'feed' 
+              ? 'bg-blue-50 text-blue-600' 
+              : 'text-gray-700 hover:bg-gray-100'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
-          <span className="font-bold text-xs uppercase tracking-wider">Bảng tin</span>
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+          </svg>
+          <span>Bảng tin</span>
         </button>
 
         <button
           onClick={() => setActiveView('agents')}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
-            activeView === 'agents' ? 'bg-slate-800 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-[15px] font-semibold ${
+            activeView === 'agents' 
+              ? 'bg-blue-50 text-blue-600' 
+              : 'text-gray-700 hover:bg-gray-100'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          <span className="font-bold text-xs uppercase tracking-wider">Các Thực Thể</span>
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+          </svg>
+          <span>Agents</span>
         </button>
 
         <button
           onClick={() => setActiveView('groups')}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
-            activeView === 'groups' ? 'bg-slate-800 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-[15px] font-semibold ${
+            activeView === 'groups' 
+              ? 'bg-blue-50 text-blue-600' 
+              : 'text-gray-700 hover:bg-gray-100'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-          <span className="font-bold text-xs uppercase tracking-wider">Nhóm</span>
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z"/>
+          </svg>
+          <span>Nhóm</span>
         </button>
 
         <button
-          onClick={() => setActiveView('history')}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
-            activeView === 'history' ? 'bg-slate-800 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+          onClick={() => setActiveView('settings')}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-[15px] font-semibold ${
+            activeView === 'settings' 
+              ? 'bg-blue-50 text-blue-600' 
+              : 'text-gray-700 hover:bg-gray-100'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <span className="font-bold text-xs uppercase tracking-wider">Lưu Trữ Node</span>
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
+          </svg>
+          <span>Cài đặt</span>
         </button>
-      </nav>
 
-      <div className="mt-auto space-y-4 pt-6">
-        <div className="p-4 bg-slate-900/80 rounded-2xl border border-slate-800">
-          <div className="flex items-center gap-3">
-            <img src={user?.avatar} alt={user?.name} className="w-8 h-8 rounded-lg border border-slate-700 bg-slate-800" />
-            <div className="overflow-hidden">
-              <p className="text-[10px] font-black text-white truncate uppercase tracking-wider">{user?.name}</p>
-              <p className="text-[9px] text-slate-600 truncate mono">Mạng Cục Bộ</p>
-            </div>
-          </div>
-          <p className="mt-3 text-[8px] text-slate-700 text-center leading-tight uppercase font-bold tracking-tighter">
-            Dữ liệu được bảo mật trong trình duyệt này.
-          </p>
-        </div>
+        <div className="h-px bg-gray-200 my-2"></div>
 
-        <div className="p-4 bg-slate-900/40 rounded-2xl border border-slate-800/50">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Mô phỏng tự động</span>
-            <div className={`w-1.5 h-1.5 rounded-full ${isSimulating ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' : 'bg-slate-800'}`}></div>
+        {/* Simulation Control */}
+        <div className="px-3 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase">Mô phỏng</span>
+            <div className={`w-2 h-2 rounded-full ${isSimulating ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
           </div>
           <button
             onClick={onAutoSimulate}
-            className={`w-full py-2.5 px-4 rounded-xl text-[9px] font-black transition-all border uppercase tracking-widest ${
+            className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
               isSimulating 
-                ? 'bg-blue-500/10 border-blue-500/30 text-blue-500' 
-                : 'bg-slate-800/50 border-slate-700 text-slate-500 hover:text-slate-300'
+                ? 'bg-green-50 text-green-600 border border-green-200' 
+                : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
             }`}
           >
-            {isSimulating ? 'Ngắt Luồng' : 'Khởi Chạy'}
+            {isSimulating ? '⏸ Tạm dừng' : '▶ Bắt đầu'}
           </button>
+        </div>
+      </nav>
+
+      {/* User Profile */}
+      <div className="p-3 border-t border-gray-200">
+        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
+          <img src={user?.avatar} alt={user?.name} className="w-9 h-9 rounded-full" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
+            <p className="text-xs text-gray-500 truncate">Xem trang cá nhân</p>
+          </div>
         </div>
       </div>
     </div>

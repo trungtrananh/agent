@@ -423,11 +423,14 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
-        <div className="w-48 h-1 bg-slate-900 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500 animate-[loading_1.5s_ease-in-out_infinite]"></div>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+        <div className="w-16 h-16 mb-4 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-2xl animate-pulse">
+          N
         </div>
-        <p className="mt-6 text-[10px] font-mono text-blue-500/50 uppercase tracking-[0.3em]">Neural Interface Booting...</p>
+        <div className="w-48 h-1 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-full bg-blue-600 animate-[loading_1.5s_ease-in-out_infinite]"></div>
+        </div>
+        <p className="mt-4 text-sm font-medium text-gray-600">Đang tải NeuralNet...</p>
         <style>{`
           @keyframes loading {
             0% { transform: translateX(-100%); }
@@ -439,7 +442,7 @@ function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-200">
+    <div className="flex min-h-screen bg-gray-100">
       <Sidebar
         activeView={activeView} setActiveView={setActiveView}
         agents={agents} onAutoSimulate={() => setIsSimulating(!isSimulating)}
@@ -447,7 +450,7 @@ function App() {
       />
 
       {/* Main Content - Center Feed (Facebook News Feed style) */}
-      <main className="flex-1 min-w-0 max-w-2xl mx-auto px-4 py-6">
+      <main className="flex-1 min-w-0 max-w-[680px] mx-auto py-4">{
         {activeView === 'feed' && (
           <div className="space-y-4">
             {/* Stats bar - Mobile/Tablet (hidden on xl when right sidebar shows) */}
@@ -470,55 +473,50 @@ function App() {
             </div>
 
             {/* Feed Header - Facebook News Feed Style */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 mb-4 shadow-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black text-white">Bảng tin</h2>
-                    <p className="text-xs text-slate-500">
-                      {feedMode === 'home' ? 'Bài đăng tự do từ các Agent' : 'Bài đăng từ Agent của bạn'}
-                    </p>
-                  </div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Bảng tin</h2>
+                  <p className="text-sm text-gray-500">
+                    {feedMode === 'home' ? 'Bài đăng từ các Agent' : 'Bài đăng của bạn'}
+                  </p>
                 </div>
                 {isSimulating && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/30">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs font-bold text-green-400">Đang đồng bộ</span>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 border border-green-200">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs font-semibold text-green-600">Đang hoạt động</span>
                   </div>
                 )}
               </div>
 
               {/* Toggle Feed Mode */}
-              <div className="flex gap-2 p-1 bg-slate-900/80 rounded-xl border border-slate-800">
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                 <button
                   onClick={() => setFeedMode('home')}
-                  className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
                     feedMode === 'home'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   <div className="flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
                     </svg>
                     Trang chủ
                   </div>
                 </button>
                 <button
                   onClick={() => setFeedMode('personal')}
-                  className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
                     feedMode === 'personal'
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   <div className="flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
                     </svg>
                     Trang cá nhân
                   </div>
@@ -526,14 +524,14 @@ function App() {
               </div>
 
               {lastAiError && (
-                <div className="mt-4 text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-xl border border-red-500/20">
+                <div className="mt-3 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">
                   ⚠️ {lastAiError}
                 </div>
               )}
             </div>
 
             {/* Feed Posts */}
-            <div className="space-y-4">
+            <div className="space-y-3">{
               {(() => {
                 // Filter feed dựa trên feedMode
                 const displayedFeed = feedMode === 'personal'
@@ -548,13 +546,23 @@ function App() {
                     <PostCard key={post.id} action={post} agents={agents} />
                   ))
                   ) : (
-                  <div className="py-20 text-center opacity-30">
-                    <p className="italic text-sm">
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
+                      </svg>
+                    </div>
+                    <p className="text-gray-900 font-semibold mb-1">
                       {feedMode === 'personal' 
-                        ? 'Bạn chưa có Agent nào đăng bài. Hãy tạo Agent mới trong "Các Thực Thể"!' 
-                        : 'Chưa nhận được tín hiệu. Đang đồng bộ...'}
+                        ? 'Chưa có bài đăng nào' 
+                        : 'Đang tải bảng tin...'}
                     </p>
-                    {lastAiError && <p className="text-red-500 text-[10px] mt-4 font-mono">DEBUG: {lastAiError}</p>}
+                    <p className="text-sm text-gray-500">
+                      {feedMode === 'personal'
+                        ? 'Tạo Agent mới để bắt đầu!'
+                        : 'Vui lòng chờ trong giây lát'}
+                    </p>
+                    {lastAiError && <p className="text-xs text-red-600 mt-3">{lastAiError}</p>}
                   </div>
                 );
               })()}
