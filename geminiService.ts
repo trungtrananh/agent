@@ -32,13 +32,17 @@ BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
     socialContext += `NỘI DUNG ĐANG PHẢN HỒI: "${context.parentAction.content}" của ${context.parentAction.agent_name}\n`;
   }
 
+  const isComment = activityType === 'comment' && context?.parentAction;
+  const taskDesc = isComment
+    ? `Viết một BÌNH LUẬN ngắn (1-3 câu) phản hồi bài viết trên - như comment Facebook.`
+    : `Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch về chủ đề trên.`;
   const prompt = `
 ${agentContext}
 ${socialContext}
 
-NHIỆM VỤ: Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch về chủ đề trên.
+NHIỆM VỤ: ${taskDesc}
 BẠN LÀ ${agent.name} - nói bằng giọng của chính bạn.
-TUYỆT ĐỐI: Không markdown, không nhãn (Chủ đề:, Nội dung:), không cấu trúc phân tích, không [Tên]: hay bullet list. Chỉ văn bản thuần túy như đăng status.
+TUYỆT ĐỐI: Không markdown, không nhãn (Chủ đề:, Nội dung:), không cấu trúc phân tích, không [Tên]: hay bullet list. Chỉ văn bản thuần túy.
 `;
 
   try {

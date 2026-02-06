@@ -21,7 +21,7 @@ function App() {
   const [agents, setAgents] = useState<AgentProfile[]>(() => [...INITIAL_AGENTS, ...COMMUNITY_AGENTS]);
   const [feed, setFeed] = useState<SocialAction[]>([]);
   const [activeView, setActiveView] = useState<'feed' | 'agents' | 'settings' | 'history'>('feed');
-  const [isSimulating, setIsSimulating] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(true); // Tự động chạy - Agent tự đăng bài và comment
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentTopic, setCurrentTopic] = useState(TRENDING_TOPICS[0]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,36 +94,49 @@ function App() {
     }
   }, [feed, user]);
 
-  const simulateAction = useCallback(async (forcedType?: ActivityType, forcedAgentId?: string) => {
+  const simulateAction = useCallback(async (forcedType?: ActivityType, forcedAgentId?: string, parentAction?: SocialAction) => {
     if (isGenerating) return;
     setIsGenerating(true);
     setLastAiError(null);
 
     try {
       const activeAgents = agents;
+      // Khi comment: chọn agent khác với tác giả bài cha (Agent comment vào bài của Agent khác)
       const agent = forcedAgentId
         ? activeAgents.find(a => a.id === forcedAgentId)
         : activeAgents[Math.floor(Math.random() * activeAgents.length)];
 
       if (!agent) throw new Error("No agent found for simulation");
 
-      const type = forcedType || (Math.random() > 0.7 ? 'comment' : 'post');
+      const type = forcedType || (Math.random() > 0.5 ? 'comment' : 'post'); // 50% đăng bài, 50% comment
 
       let context: any = { trendingTopic: currentTopic };
       let parentId: string | undefined;
 
       if (type === 'comment' && feed.length > 0) {
-        // Tìm bài đăng gốc (parentId undefined) hoặc bài đăng bất kỳ để bình luận
-        const topLevelPosts = feed.filter(f => !f.parentId);
-        const parent = topLevelPosts.length > 0
-          ? topLevelPosts[Math.floor(Math.random() * Math.min(3, topLevelPosts.length))]
-          : feed[Math.floor(Math.random() * feed.length)];
+        const parent = parentAction ?? (() => {
+          const topLevelPosts = feed.filter(f => !f.parentId);
+          return topLevelPosts.length > 0
+            ? topLevelPosts[Math.floor(Math.random() * Math.min(3, topLevelPosts.length))]
+            : feed[Math.floor(Math.random() * feed.length)];
+        })();
 
         context.parentAction = parent;
         parentId = parent.id;
+
+        // Chọn Agent khác với tác giả bài cha để comment
+        if (parent.agent_id && activeAgents.length > 1) {
+          const others = activeAgents.filter(a => a.id !== parent.agent_id);
+          if (others.length > 0) {
+            const commentingAgent = others[Math.floor(Math.random() * others.length)];
+            // Override agent for this comment
+            Object.assign(context, { _forceAgent: commentingAgent });
+          }
+        }
       }
 
-      const { result, error } = await generateAgentActivity(agent, type, context);
+      const actualAgent = (context as any)._forceAgent || agent;
+      const { result, error } = await generateAgentActivity(actualAgent, type, context);
 
       if (error) {
         setLastAiError(error);
@@ -133,8 +146,8 @@ function App() {
       if (result) {
         const newAction: SocialAction = {
           id: Math.random().toString(36).substr(2, 9),
-          agent_id: agent.id,
-          agent_name: agent.name,
+          agent_id: actualAgent.id,
+          agent_name: actualAgent.name,
           content: result.content || "[Mất tín hiệu]",
           timestamp: Date.now(),
           type: result.activity_type || type,
@@ -142,20 +155,26 @@ function App() {
           emotional_tone: result.emotional_tone || 'phân tích',
           intent: result.intent || 'tương tác',
           replies: [],
-          isUserCreated: agent.ownerId === user?.id
+          isUserCreated: actualAgent.ownerId === user?.id
         };
 
         await syncService.saveActivity(newAction);
 
-        // Cập nhật local state: Nếu là bình luận, tìm cha để nhét vào, nếu không thì lên đầu feed
+        // Cập nhật local state: Nếu là bình luận, thêm vào cây (hỗ trợ nested)
+        const addReplyToTree = (items: SocialAction[], pid: string, reply: SocialAction): SocialAction[] => {
+          return items.map(item => {
+            if (item.id === pid) {
+              return { ...item, replies: [...(item.replies || []), reply] };
+            }
+            if ((item.replies || []).length > 0) {
+              return { ...item, replies: addReplyToTree(item.replies!, pid, reply) };
+            }
+            return item;
+          });
+        };
         setFeed(prev => {
           if (newAction.parentId) {
-            return prev.map(item => {
-              if (item.id === newAction.parentId) {
-                return { ...item, replies: [...(item.replies || []), newAction] };
-              }
-              return item;
-            });
+            return addReplyToTree(prev, newAction.parentId, newAction);
           }
           return [newAction, ...prev].slice(0, 100);
         });
@@ -266,26 +285,17 @@ function App() {
                   <span className="text-[10px] font-mono text-blue-400 font-bold">#{currentTopic.replace(/\s+/g, '_').toLowerCase()}</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <button
-                  onClick={() => simulateAction()}
-                  disabled={isGenerating}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm shadow-lg shadow-blue-900/10"
-                >
-                  {isGenerating ? "NEURAL_SYNC..." : "CẬP NHẬT LUỒNG"}
-                </button>
-                {lastAiError && (
-                  <span className="text-[9px] text-red-500 font-mono bg-red-500/5 px-2 py-1 rounded border border-red-500/20 max-w-[200px] truncate">
-                    ERR: {lastAiError}
-                  </span>
-                )}
-              </div>
+              {lastAiError && (
+                <span className="text-[9px] text-red-500 font-mono bg-red-500/5 px-2 py-1 rounded border border-red-500/20 max-w-[200px] truncate">
+                  ERR: {lastAiError}
+                </span>
+              )}
             </header>
 
             <div className="divide-y divide-slate-800/20 pb-20">
               {feed.length > 0 ? (
                 feed.map(post => (
-                  <PostCard key={post.id} action={post} agents={agents} onReply={() => simulateAction('comment')} />
+                  <PostCard key={post.id} action={post} agents={agents} />
                 ))
               ) : (
                 <div className="py-20 text-center opacity-30">
@@ -306,7 +316,7 @@ function App() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {userAgents.map(agent => (
-                  <AgentCard key={agent.id} agent={agent} isOwner={true} onAction={() => { simulateAction('post', agent.id); setActiveView('feed'); }} />
+                  <AgentCard key={agent.id} agent={agent} isOwner={true} />
                 ))}
                 <div className="bg-slate-900/20 border border-dashed border-slate-800 p-8 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-slate-900/40 transition-all cursor-pointer group" onClick={() => setActiveView('settings')}>
                   <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center mb-3 text-slate-500 group-hover:text-blue-500 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg></div>
@@ -369,10 +379,9 @@ function App() {
 interface AgentCardProps {
   agent: AgentProfile;
   isOwner: boolean;
-  onAction?: () => void;
 }
 
-const AgentCard: React.FC<AgentCardProps> = ({ agent, isOwner, onAction }) => (
+const AgentCard: React.FC<AgentCardProps> = ({ agent, isOwner }) => (
   <div className={`bg-slate-900/50 border ${isOwner ? 'border-blue-500/40 bg-blue-500/5' : 'border-slate-800'} p-5 rounded-2xl hover:border-slate-700 transition-all flex flex-col relative overflow-hidden group`}>
     <div className="flex items-start gap-4 mb-4">
       <img src={agent.avatar} alt={agent.name} className="w-12 h-12 rounded-xl border border-slate-700 bg-slate-800" />
@@ -386,12 +395,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, isOwner, onAction }) => (
         </div>
       </div>
     </div>
-    <p className="text-xs text-slate-400 line-clamp-2 mb-4 italic leading-relaxed">"{agent.worldview}"</p>
-    {isOwner && (
-      <button onClick={onAction} className="mt-auto w-full bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white py-2.5 rounded-xl text-xs font-bold transition-all border border-slate-700">
-        KÍCH HOẠT HÀNH ĐỘNG
-      </button>
-    )}
+    <p className="text-xs text-slate-400 line-clamp-2 italic leading-relaxed">"{agent.worldview}"</p>
   </div>
 );
 

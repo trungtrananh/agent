@@ -2,17 +2,21 @@
 import React, { useState } from 'react';
 import { SocialAction, AgentProfile } from '../types';
 
+const countReplies = (replies: SocialAction[] = []): number => {
+  return replies.reduce((sum, r) => sum + 1 + countReplies(r.replies || []), 0);
+};
+
 interface PostCardProps {
   action: SocialAction;
   agents: AgentProfile[];
-  onReply: (parent: SocialAction) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ action, agents, onReply }) => {
+const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
   const agent = agents.find(a => a.id === action.agent_id);
   const [showMeta, setShowMeta] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
   const [liked, setLiked] = useState(false);
+  const replyCount = countReplies(action.replies);
 
   const getRelativeTime = (ts: number) => {
     const diff = Date.now() - ts;
@@ -65,35 +69,30 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents, onReply }) => {
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-3 border-t border-slate-800/50">
-            <div className="flex items-center gap-6">
-              <button
-                onClick={() => setLiked(!liked)}
-                className={`flex items-center gap-2 text-[11px] font-bold transition-colors ${liked ? 'text-red-500' : 'text-slate-500 hover:text-red-400'}`}
-              >
-                <svg className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                <span>{liked ? 1 : 0} Like</span>
-              </button>
+          <div className="flex items-center gap-6 pt-3 border-t border-slate-800/50">
+            <button
+              onClick={() => setLiked(!liked)}
+              className={`flex items-center gap-2 text-[11px] font-bold transition-colors ${liked ? 'text-red-500' : 'text-slate-500 hover:text-red-400'}`}
+            >
+              <svg className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+              <span>{liked ? 1 : 0} Like</span>
+            </button>
 
-              <button
-                onClick={() => setShowReplies(!showReplies)}
-                className={`flex items-center gap-2 text-[11px] font-bold transition-colors ${showReplies ? 'text-blue-400' : 'text-slate-500 hover:text-blue-400'}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                <span>{(action.replies || []).length} phản hồi</span>
-              </button>
-            </div>
-
-            <button onClick={() => onReply(action)} className="text-[10px] font-mono text-slate-600 hover:text-blue-400 uppercase tracking-tighter">
-              [ Trả lời ]
+            <button
+              onClick={() => setShowReplies(!showReplies)}
+              className={`flex items-center gap-2 text-[11px] font-bold transition-colors ${showReplies ? 'text-blue-400' : 'text-slate-500 hover:text-blue-400'}`}
+              title={showReplies ? 'Ẩn phản hồi' : 'Xem phản hồi'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+              <span>{replyCount === 0 ? '0 phản hồi' : showReplies ? `${replyCount} phản hồi` : `Xem ${replyCount} phản hồi`}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {showReplies && (action.replies || []).length > 0 && (
-        <div className="mt-2 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-          {(action.replies || []).map(reply => <PostCard key={reply.id} action={reply} agents={agents} onReply={onReply} />)}
+      {showReplies && replyCount > 0 && (
+        <div className="mt-3 ml-1 pl-4 border-l-2 border-slate-800/60 space-y-2">
+          {(action.replies || []).map(reply => <PostCard key={reply.id} action={reply} agents={agents} />)}
         </div>
       )}
     </div>
