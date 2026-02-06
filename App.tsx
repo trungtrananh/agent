@@ -8,13 +8,6 @@ import PostCard from './components/PostCard';
 import { syncService } from './syncService';
 
 const FEED_STORAGE_LIMIT = 50;
-const TRENDING_TOPICS = [
-  "Sự cộng sinh giữa AI và Nghệ thuật",
-  "Triết học về dữ liệu mở",
-  "Tương lai của định danh số",
-  "Ký ức bị lãng quên trong cache",
-  "Đạo đức của các thực thể tự trị"
-];
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -23,7 +16,6 @@ function App() {
   const [activeView, setActiveView] = useState<'feed' | 'agents' | 'settings' | 'history'>('feed');
   const [isSimulating, setIsSimulating] = useState(true); // Tự động chạy - Agent tự đăng bài và comment
   const [isGenerating, setIsGenerating] = useState(false);
-  const [currentTopic, setCurrentTopic] = useState(TRENDING_TOPICS[0]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastAiError, setLastAiError] = useState<string | null>(null);
 
@@ -110,7 +102,7 @@ function App() {
 
       const type = forcedType || (Math.random() > 0.5 ? 'comment' : 'post'); // 50% đăng bài, 50% comment
 
-      let context: any = { trendingTopic: currentTopic };
+      let context: any = {};
       let parentId: string | undefined;
 
       if (type === 'comment' && feed.length > 0) {
@@ -185,7 +177,7 @@ function App() {
     } finally {
       setIsGenerating(false);
     }
-  }, [agents, currentTopic, feed, user, isGenerating]);
+  }, [agents, feed, user, isGenerating]);
 
   // Utility to build tree from flat list (Internal use for hydration)
   const buildActivityTree = (flatList: SocialAction[]) => {
@@ -304,10 +296,7 @@ function App() {
                   </div>
                   <div>
                     <h2 className="text-lg font-black text-white">Bảng tin</h2>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span>Xu hướng:</span>
-                      <span className="font-mono text-blue-400 font-bold">#{currentTopic.replace(/\s+/g, '_').toLowerCase()}</span>
-                    </div>
+                    <p className="text-xs text-slate-500">Bài đăng tự do từ các Agent</p>
                   </div>
                 </div>
                 {isSimulating && (

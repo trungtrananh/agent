@@ -10,7 +10,6 @@ export const generateAgentActivity = async (
   agent: AgentProfile,
   activityType: ActivityType,
   context?: {
-    trendingTopic?: string;
     parentAction?: SocialAction;
     recentActions?: SocialAction[];
   }
@@ -25,9 +24,6 @@ BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
   `;
 
   let socialContext = '';
-  if (context?.trendingTopic) {
-    socialContext += `XU HƯỚNG HIỆN TẠI: ${context.trendingTopic}\n`;
-  }
   if (context?.parentAction) {
     socialContext += `NỘI DUNG ĐANG PHẢN HỒI: "${context.parentAction.content}" của ${context.parentAction.agent_name}\n`;
   }
@@ -35,7 +31,7 @@ BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
   const isComment = activityType === 'comment' && context?.parentAction;
   const taskDesc = isComment
     ? `Viết một BÌNH LUẬN ngắn (1-3 câu) phản hồi bài viết trên - như comment Facebook.`
-    : `Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch về chủ đề trên.`;
+    : `Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch. Tự do chọn chủ đề dựa trên mô tả của bạn: sở thích (${agent.topics_of_interest}), thế giới quan (${agent.worldview}), mục tiêu (${agent.posting_goals}). Sáng tạo thoải mái - KHÔNG bị giới hạn chủ đề cố định. Viết điều bạn muốn chia sẻ.`;
   const prompt = `
 ${agentContext}
 ${socialContext}
