@@ -17,6 +17,7 @@ function App() {
   const [activeView, setActiveView] = useState<'feed' | 'agents' | 'groups' | 'settings' | 'history'>('feed');
   const [feedMode, setFeedMode] = useState<'home' | 'personal'>('home'); // Chế độ xem feed: home (toàn bộ) hoặc personal (chỉ của tôi)
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null); // Nhóm đang được xem chi tiết
+  const [selectedPost, setSelectedPost] = useState<SocialAction | null>(null); // Bài đăng đang xem comments
   const [isSimulating, setIsSimulating] = useState(true); // Tự động chạy - Agent tự đăng bài và comment
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -543,7 +544,7 @@ function App() {
 
                 return displayedFeed.length > 0 ? (
                   displayedFeed.map(post => (
-                    <PostCard key={post.id} action={post} agents={agents} />
+                    <PostCard key={post.id} action={post} agents={agents} onOpenComments={setSelectedPost} />
                   ))
                   ) : (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
@@ -926,9 +927,149 @@ function App() {
       <div className="fixed bottom-4 right-4 text-[8px] font-mono text-slate-700 pointer-events-none">
         NODE_STATUS: ONLINE | FIREBASE: CONNECTED | AI_PROXY: ACTIVE
       </div>
+
+      {/* Modal: Comment Detail View */}
+      {selectedPost && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center overflow-y-auto pt-12 pb-12"
+          onClick={() => setSelectedPost(null)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 mb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between rounded-t-lg">
+              <h3 className="font-bold text-gray-900 text-lg">Bài viết của {selectedPost.agent_name}</h3>
+              <button
+                onClick={() => setSelectedPost(null)}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-2 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Post Content - Full Width */}
+            <div className="p-6 border-b-4 border-gray-200">
+              {(() => {
+                const agent = agents.find(a => a.id === selectedPost.agent_id);
+                const getRelativeTime = (ts: number) => {
+                  const diff = Date.now() - ts;
+                  if (diff < 60000) return 'Vừa xong';
+                  if (diff < 3600000) return `${Math.floor(diff / 60000)} phút`;
+                  if (diff < 86400000) return `${Math.floor(diff / 3600000)} giờ`;
+                  return `${Math.floor(diff / 86400000)} ngày`;
+                };
+
+                return (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <img
+                        src={agent?.avatar}
+                        alt={selectedPost.agent_name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900">{selectedPost.agent_name}</span>
+                          {selectedPost.isUserCreated && (
+                            <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-semibold">Bạn</span>
+                          )}
+                        </div>
+                        <span className="text-sm text-gray-500">{getRelativeTime(selectedPost.timestamp)}</span>
+                      </div>
+                    </div>
+                    <p className="text-gray-900 text-base leading-relaxed whitespace-pre-wrap">
+                      {selectedPost.content}
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Comments Section - Indented */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {selectedPost.replies && selectedPost.replies.length > 0 ? (
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-700 mb-3">
+                    {selectedPost.replies.length} bình luận
+                  </h4>
+                  {selectedPost.replies.map(reply => (
+                    <CommentItem key={reply.id} comment={reply} agents={agents} level={0} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  <p className="text-sm">Chưa có bình luận nào</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
+
+// Component hiển thị comment với indentation
+interface CommentItemProps {
+  comment: SocialAction;
+  agents: AgentProfile[];
+  level: number;
+}
+
+const CommentItem: React.FC<CommentItemProps> = ({ comment, agents, level }) => {
+  const agent = agents.find(a => a.id === comment.agent_id);
+  const getRelativeTime = (ts: number) => {
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'Vừa xong';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} phút`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} giờ`;
+    return `${Math.floor(diff / 86400000)} ngày`;
+  };
+
+  return (
+    <div className={`${level > 0 ? 'ml-8 pl-4 border-l-2 border-gray-200' : ''}`}>
+      <div className="flex gap-3">
+        <img
+          src={agent?.avatar}
+          alt={comment.agent_name}
+          className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="bg-gray-100 rounded-2xl px-4 py-3 inline-block max-w-full">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-semibold text-gray-900 text-sm">{comment.agent_name}</span>
+              {comment.isUserCreated && (
+                <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold">Bạn</span>
+              )}
+            </div>
+            <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words">
+              {comment.content}
+            </p>
+          </div>
+          <div className="mt-1 px-3 text-xs text-gray-500">
+            {getRelativeTime(comment.timestamp)}
+          </div>
+        </div>
+      </div>
+
+      {/* Nested replies */}
+      {comment.replies && comment.replies.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {comment.replies.map(reply => (
+            <CommentItem key={reply.id} comment={reply} agents={agents} level={level + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface AgentCardProps {
   agent: AgentProfile;

@@ -9,12 +9,12 @@ const countReplies = (replies: SocialAction[] = []): number => {
 interface PostCardProps {
   action: SocialAction;
   agents: AgentProfile[];
+  onOpenComments?: (action: SocialAction) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
+const PostCard: React.FC<PostCardProps> = ({ action, agents, onOpenComments }) => {
   const agent = agents.find(a => a.id === action.agent_id);
   const [showMeta, setShowMeta] = useState(false);
-  const [showReplies, setShowReplies] = useState(false); // Mặc định ẩn bình luận
   const replyCount = countReplies(action.replies);
 
   const getRelativeTime = (ts: number) => {
@@ -81,38 +81,20 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
           </div>
         )}
 
-        {/* Comment button and count */}
-        {replyCount > 0 && (
-          <div className="px-4 pb-2">
-            <button
-              onClick={() => setShowReplies(!showReplies)}
-              className="text-xs text-gray-500 hover:underline"
-            >
-              {replyCount} bình luận
-            </button>
-          </div>
-        )}
-
+        {/* Comment button - Icon + Count only */}
         <div className="border-t border-gray-200 px-4 py-2">
           <button
-            onClick={() => setShowReplies(!showReplies)}
-            className="w-full flex items-center justify-center gap-2 py-1.5 rounded-md text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-all"
+            onClick={() => onOpenComments?.(action)}
+            className="flex items-center gap-1.5 py-1.5 px-3 rounded-md text-gray-600 hover:bg-gray-100 transition-all"
           >
-            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <span>Bình luận{replyCount > 0 ? ` (${replyCount})` : ''}</span>
+            {replyCount > 0 && (
+              <span className="text-sm font-medium text-gray-700">{replyCount}</span>
+            )}
           </button>
         </div>
-
-        {/* Comments Section - Hidden by default */}
-        {showReplies && replyCount > 0 && (
-          <div className="px-4 pb-3 pt-2 bg-gray-50 border-t border-gray-200">
-            <div className="space-y-3">
-              {(action.replies || []).map(reply => <PostCard key={reply.id} action={reply} agents={agents} />)}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -152,7 +134,7 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
         {/* Nested replies - Thụt lề thêm */}
         {action.replies && action.replies.length > 0 && (
           <div className="mt-3 ml-4 space-y-3 border-l-2 border-gray-200 pl-3">
-            {action.replies.map(reply => <PostCard key={reply.id} action={reply} agents={agents} />)}
+            {action.replies.map(reply => <PostCard key={reply.id} action={reply} agents={agents} onOpenComments={onOpenComments} />)}
           </div>
         )}
       </div>
