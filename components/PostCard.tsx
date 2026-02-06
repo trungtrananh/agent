@@ -14,8 +14,7 @@ interface PostCardProps {
 const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
   const agent = agents.find(a => a.id === action.agent_id);
   const [showMeta, setShowMeta] = useState(false);
-  const [showReplies, setShowReplies] = useState(true); // Mặc định hiện bình luận
-  const [liked, setLiked] = useState(false);
+  const [showReplies, setShowReplies] = useState(false); // Mặc định ẩn bình luận
   const replyCount = countReplies(action.replies);
 
   const getRelativeTime = (ts: number) => {
@@ -67,7 +66,7 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
         </div>
 
         {/* Content */}
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-3">
           <div className="text-gray-900 text-[15px] leading-snug whitespace-pre-wrap">
             {action.content}
           </div>
@@ -82,51 +81,43 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
           </div>
         )}
 
-        {/* Stats & Actions */}
-        <div className="px-4 pb-2">
-          {replyCount > 0 && (
-            <div className="py-1 flex items-center justify-between text-xs text-gray-500">
-              <span>{replyCount} bình luận</span>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-gray-200 px-2 py-1">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setLiked(!liked)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-[13px] font-semibold transition-all ${
-                liked ? 'text-blue-600' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <svg className={`w-[18px] h-[18px] ${liked ? 'fill-blue-600' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
-              </svg>
-              <span>Thích</span>
-            </button>
+        {/* Comment button and count */}
+        {replyCount > 0 && (
+          <div className="px-4 pb-2">
             <button
               onClick={() => setShowReplies(!showReplies)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-all"
+              className="text-xs text-gray-500 hover:underline"
             >
-              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <span>Bình luận</span>
+              {replyCount} bình luận
             </button>
           </div>
+        )}
+
+        <div className="border-t border-gray-200 px-4 py-2">
+          <button
+            onClick={() => setShowReplies(!showReplies)}
+            className="w-full flex items-center justify-center gap-2 py-1.5 rounded-md text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-all"
+          >
+            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span>Bình luận{replyCount > 0 ? ` (${replyCount})` : ''}</span>
+          </button>
         </div>
 
-        {/* Comments Section */}
+        {/* Comments Section - Hidden by default */}
         {showReplies && replyCount > 0 && (
-          <div className="px-4 pb-3 pt-2 space-y-2.5">
-            {(action.replies || []).map(reply => <PostCard key={reply.id} action={reply} agents={agents} />)}
+          <div className="px-4 pb-3 pt-2 bg-gray-50 border-t border-gray-200">
+            <div className="space-y-3">
+              {(action.replies || []).map(reply => <PostCard key={reply.id} action={reply} agents={agents} />)}
+            </div>
           </div>
         )}
       </div>
     );
   }
 
-  // Component cho bình luận (comment/reply)
+  // Component cho bình luận (comment/reply) - Thụt lề
   return (
     <div className="flex gap-2 group">
       <img
@@ -150,12 +141,6 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
         </div>
         
         <div className="flex items-center gap-3 mt-1 px-3">
-          <button 
-            onClick={() => setLiked(!liked)}
-            className={`text-xs font-semibold hover:underline ${liked ? 'text-blue-600' : 'text-gray-600'}`}
-          >
-            Thích
-          </button>
           <span className="text-xs text-gray-500">{getRelativeTime(action.timestamp)}</span>
           {showMeta && (
             <span className="text-[10px] text-gray-400">
@@ -164,9 +149,9 @@ const PostCard: React.FC<PostCardProps> = ({ action, agents }) => {
           )}
         </div>
 
-        {/* Nested replies */}
+        {/* Nested replies - Thụt lề thêm */}
         {action.replies && action.replies.length > 0 && (
-          <div className="mt-2.5 space-y-2.5">
+          <div className="mt-3 ml-4 space-y-3 border-l-2 border-gray-200 pl-3">
             {action.replies.map(reply => <PostCard key={reply.id} action={reply} agents={agents} />)}
           </div>
         )}
