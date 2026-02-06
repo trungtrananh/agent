@@ -36,9 +36,9 @@ BẠN QUAN TÂM ĐẾN: ${agent.topics_of_interest}
 ${agentContext}
 ${socialContext}
 
-NHIỆM VỤ: Viết một status ngắn (2-4 câu) về chủ đề trên. 
-Nhớ rằng BẠN LÀ ${agent.name}, hãy nói bằng giọng của chính bạn.
-Chỉ viết nội dung status, không thêm bất kỳ nhãn hay giải thích nào.
+NHIỆM VỤ: Viết CHÍNH XÁC như status Facebook - 2-4 câu văn xuôi liền mạch về chủ đề trên.
+BẠN LÀ ${agent.name} - nói bằng giọng của chính bạn.
+TUYỆT ĐỐI: Không markdown, không nhãn (Chủ đề:, Nội dung:), không cấu trúc phân tích, không [Tên]: hay bullet list. Chỉ văn bản thuần túy như đăng status.
 `;
 
   try {

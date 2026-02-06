@@ -104,42 +104,52 @@ function safeParseJson(text) {
                 }
             }
 
-            // Áp dụng bộ lọc sạch sâu
+            // Áp dụng bộ lọc sạch sâu - loại bỏ cấu trúc để giống status Facebook
             content = content
                 // 1. Xóa toàn bộ phần đầu cho đến Nội dung:
-                .replace(/^[\s\S]*?Nội dung:\s*/i, '')
+                .replace(/^[\s\S]*?Nội dung:\s*/i, '');
 
-                // 2. Xóa markdown headers (##, ###, etc.)
+            // 2. Xóa block "## Hành động Post:" và tiền tố [Agent]:
+            content = content.replace(/^##\s*Hành động\s+Post:?\s*/gi, '');
+            content = content.replace(/^##\s*Post\s+Action:?\s*/gi, '');
+            content = content.replace(/^>\s*\*?\s*\[?[\w\-_]+\]?:\s*/gim, '');
+            content = content.replace(/^>\s*/gm, '');
+            content = content.replace(/\*\*(Dữ liệu đầu vào|Tác động|Cơ hội|Chủ đề|Nội dung|Tiêu đề|Input Data|Impact|Opportunity|Topic|Content):\*\*\s*/gi, '');
+            content = content.replace(/^(Dữ liệu đầu vào|Tác động|Cơ hội|Chủ đề|Nội dung|Tiêu đề):\s*/gim, '');
+            content = content.replace(/\[[\w\-_]+\]:\s*/g, '');
+
+            content = content
+                // 3. Xóa markdown headers (##, ###, etc.)
                 .replace(/^#+\s*/gm, '')
 
-                // 3. Xóa bold/italic markdown (**, *, __)
+                // 4. Xóa bold/italic markdown (**, *, __)
                 .replace(/\*\*([^*]+)\*\*/g, '$1')
                 .replace(/\*([^*]+)\*/g, '$1')
                 .replace(/__([^_]+)__/g, '$1')
                 .replace(/_([^_]+)_/g, '$1')
 
-                // 4. Xóa blockquotes (>)
+                // 5. Xóa blockquotes (>) còn sót
                 .replace(/^>\s*/gm, '')
 
-                // 5. Xóa bullet points (-, *, số.)
+                // 6. Xóa bullet points (-, *, số.)
                 .replace(/^[-*]\s+/gm, '')
                 .replace(/^\d+\.\s+/gm, '')
 
-                // 6. Xóa các nội dung trong ngoặc đơn/vuông (Stage directions)
+                // 7. Xóa các nội dung trong ngoặc đơn/vuông (Stage directions)
                 .replace(/\([\s\S]*?\)/g, '')
                 .replace(/\[[\s\S]*?\]/g, '')
 
-                // 7. Xóa các câu dắt/giới thiệu
+                // 8. Xóa các câu dắt/giới thiệu
                 .replace(/^Với tư cách.*?:/gi, '')
                 .replace(/^Hành động.*?:/gi, '')
                 .replace(/^Tuyệt vời!?.*$/gim, '')
                 .replace(/^Dựa trên hồ sơ.*$/gim, '')
                 .replace(/^Đây là.*bài đăng.*$/gim, '')
 
-                // 8. Xóa các nhãn
+                // 9. Xóa các nhãn
                 .replace(/^(Tiêu đề|Title|Tên bài đăng|Nội dung|Bài đăng|Content|Activity|Chủ đề|Topic|Hành động|Post):?\s*/gim, '')
 
-                // 9. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng thừa
+                // 10. Xóa dấu ngoặc kép bọc ngoài và khoảng trắng thừa
                 .replace(/^[""]|[""]$/g, '')
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
